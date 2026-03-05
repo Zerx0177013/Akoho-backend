@@ -27,6 +27,17 @@ class RaceService {
 
     return result;
   }
+
+  static async getAllRaces(pool) {
+    const result = await Race.findAll(pool);
+    return result.recordset;
+  }
+
+  static async getRaceById(pool, idRace) {
+    const result = await Race.findById(pool, idRace);
+    return result.recordset[0];
+  }
+  
 }
 
 module.exports = RaceService;

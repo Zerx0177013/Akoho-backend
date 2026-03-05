@@ -1,20 +1,22 @@
 class Lot {
-  constructor(idLot, idRace, dateAchat, nombreAkoho, age) {
+  constructor(idLot, idRace, dateAchat, nombreAkoho, age, prixAchat) {
     this.idLot = idLot;
     this.idRace = idRace;
     this.dateAchat = dateAchat;
     this.nombreAkoho = nombreAkoho;
     this.age = age;
+    this.prixAchat = prixAchat;
   }
 
-  static async create(pool, idRace, dateAchat, nombreAkoho, age) {
-    const query = `INSERT INTO lot (idRace, dateAchat, nombreAkoho, age) 
-                   VALUES (@idRace, @dateAchat, @nombreAkoho, @age)`;
+  static async create(pool, idRace, dateAchat, nombreAkoho, age, prixAchat) {
+    const query = `INSERT INTO lot (idRace, dateAchat, nombreAkoho, age, prixAchat) 
+                   VALUES (@idRace, @dateAchat, @nombreAkoho, @age, @prixAchat)`;
     const request = pool.request();
     request.input('idRace', idRace);
     request.input('dateAchat', dateAchat);
     request.input('nombreAkoho', nombreAkoho);
     request.input('age', age);
+    request.input('prixAchat', prixAchat);
     return request.query(query);
   }
 
