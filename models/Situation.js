@@ -40,6 +40,18 @@ class Situation {
     `);
   }
 
+  static async findNearestByLotAndDate(pool, idLot, dateReference) {
+    const request = pool.request();
+    request.input('idLot', idLot);
+    request.input('dateReference', dateReference);
+    return request.query(`
+      SELECT TOP 1 *
+      FROM situation
+      WHERE idLot = @idLot
+      ORDER BY ABS(DATEDIFF(day, dateSituation, @dateReference)), dateSituation DESC
+    `);
+  }
+
   static async addQuantityToMostRecentSituation(pool, idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age) {
     const recentSituationResult = await this.findMostRecentSituationByLot(pool, idLot);
     const recentSituation = recentSituationResult.recordset[0];

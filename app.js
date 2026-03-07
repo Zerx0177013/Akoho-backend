@@ -8,6 +8,7 @@ const raceRoutes = require('./routes/raceRoutes');
 const lotRoutes = require('./routes/lotRoutes');
 const situationRoutes = require('./routes/situationRoutes');
 const grossissementRoutes = require('./routes/grossissementRoutes');
+const eclosionRoutes = require('./routes/eclosionRoutes');
 const app = express();
 
 // Middleware
@@ -19,6 +20,7 @@ app.use('/api/races', raceRoutes);
 app.use('/api/lots', lotRoutes);
 app.use('/api/situations', situationRoutes);
 app.use('/api/grossissements', grossissementRoutes);
+app.use('/api/eclosions', eclosionRoutes);
 
 // Health check route (optional)
 app.get('/api/health', (req, res) => {
