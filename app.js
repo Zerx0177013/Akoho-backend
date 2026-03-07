@@ -9,6 +9,7 @@ const lotRoutes = require('./routes/lotRoutes');
 const situationRoutes = require('./routes/situationRoutes');
 const grossissementRoutes = require('./routes/grossissementRoutes');
 const eclosionRoutes = require('./routes/eclosionRoutes');
+const oeufDefaillantRoutes = require('./routes/oeufDefaillantRoutes');
 const situationFinanciereRoutes = require('./routes/situationFinanciereRoutes');
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/api/lots', lotRoutes);
 app.use('/api/situations', situationRoutes);
 app.use('/api/grossissements', grossissementRoutes);
 app.use('/api/eclosions', eclosionRoutes);
+app.use('/api/oeufs-defaillants', oeufDefaillantRoutes);
 app.use('/api/situations-financieres', situationFinanciereRoutes);
 
 // Health check route (optional)

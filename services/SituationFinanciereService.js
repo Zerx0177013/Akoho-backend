@@ -5,7 +5,7 @@ const LotService = require("./LotService");
 const GrossissementService = require("./GrossissementService");
 const RaceService = require("./RaceService");
 class SituationFinanciereService {
-  async calculPoidsTotalAkoho(pool, idLot, dateSituation) {
+  static async calculPoidsTotalAkoho(pool, idLot, dateSituation) {
     const situationResult = await Situation.findNearestByLotAndDate(
       pool,
       idLot,
@@ -24,11 +24,12 @@ class SituationFinanciereService {
     const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
 
     const grossissement0 =
-      await GrossissementService.getGrossissementByRaceAndAge(
+      (await GrossissementService.getGrossissementByRaceAndAge(
         pool,
         lotActuel.idRace,
         0,
-      );
+      ))[0];
+    if (!grossissement0) return 0;
     let totalPoidsAkoho = grossissement0.variation;
 
     const ageActuelSemaine = SituationService.computeAgeInWeeks(
@@ -39,11 +40,12 @@ class SituationFinanciereService {
 
     let semaine = 1;
     while (semaine <= ageActuelSemaine) {
-      const g = await GrossissementService.getGrossissementByRaceAndAge(
+      const g = (await GrossissementService.getGrossissementByRaceAndAge(
         pool,
         lotActuel.idRace,
         semaine,
-      );
+      ))[0];
+      if (!g) break;
       totalPoidsAkoho += g.variation;
       semaine++;
     }
@@ -57,11 +59,12 @@ class SituationFinanciereService {
     // semaines complètes
     let nbrSemaines = diffSemaines;
     while (nbrSemaines > 0) {
-      const g = await GrossissementService.getGrossissementByRaceAndAge(
+      const g = (await GrossissementService.getGrossissementByRaceAndAge(
         pool,
         lotActuel.idRace,
         semaine,
-      );
+      ))[0];
+      if (!g) break;
       totalPoidsAkoho += g.variation;
       nbrSemaines--;
       semaine++;
@@ -69,17 +72,17 @@ class SituationFinanciereService {
 
     // jours restants
     if (resteJours > 0) {
-      const g = await GrossissementService.getGrossissementByRaceAndAge(
+      const g = (await GrossissementService.getGrossissementByRaceAndAge(
         pool,
         lotActuel.idRace,
         semaine,
-      );
-      totalPoidsAkoho += (g.variation / 7) * resteJours;
+      ))[0];
+      if (g) totalPoidsAkoho += (g.variation / 7) * resteJours;
     }
     return totalPoidsAkoho;
   }
 
-  async calculPoidsSakafo(pool, idLot, dateSituation) {
+  static async calculPoidsSakafo(pool, idLot, dateSituation) {
     const situationResult = await Situation.findNearestByLotAndDate(
       pool,
       idLot,
@@ -110,39 +113,42 @@ class SituationFinanciereService {
 
     let nbrSemaines = diffSemaines;
     while (nbrSemaines > 0) {
-      const g = await GrossissementService.getGrossissementByRaceAndAge(
+      const g = (await GrossissementService.getGrossissementByRaceAndAge(
         pool,
         lotActuel.idRace,
         semaine,
-      );
+      ))[0];
+      if (!g) break;
       totalPoidsSakafo += g.poidsSakafo;
       nbrSemaines--;
       semaine++;
     }
 
     if (resteJours > 0) {
-      const g = await GrossissementService.getGrossissementByRaceAndAge(
+      const g = (await GrossissementService.getGrossissementByRaceAndAge(
         pool,
         lotActuel.idRace,
         semaine,
-      );
-      totalPoidsSakafo += (g.poidsSakafo / 7) * resteJours;
+      ))[0];
+      if (g) totalPoidsSakafo += (g.poidsSakafo / 7) * resteJours;
     }
 
     return totalPoidsSakafo;
   }
 
-  async calculChiffreDaffaire(pool, dateSituation) {
-    const listeLotsResult = await LotService.getAllLots(pool);
-    const listeLots = listeLotsResult.recordset;
+  static async calculChiffreDaffaire(pool, dateSituation) {
+    if (!dateSituation) {
+      throw new Error("dateSituation is required");
+    }
+
+    const listeLots = await LotService.getAllLots(pool);
     const listeSituationsFinancieres = [];
 
     for (const lot of listeLots) {
-      const raceResult = await RaceService.getRaceById(pool, lot.idRace);
-      const race = raceResult.recordset[0];
+      const race = await RaceService.getRaceById(pool, lot.idRace);
       const situationResult = await Situation.findNearestByLotAndDate(
         pool,
-        idLot,
+        lot.idLot,
         dateSituation,
       );
       const situation = situationResult.recordset[0];
@@ -150,6 +156,15 @@ class SituationFinanciereService {
       if (!race) {
         throw new Error("Race not found for lot id " + lot.idLot);
       }
+      if (!situation) {
+        continue;
+      }
+
+      // Skip lots purchased after the requested date
+      if (new Date(lot.dateAchat) > new Date(dateSituation)) {
+        continue;
+      }
+
       const poidsTotalAkoho = await this.calculPoidsTotalAkoho(
         pool,
         lot.idLot,
@@ -165,17 +180,21 @@ class SituationFinanciereService {
 
       const nbrAtody = situation.nombreAtody;
       const prixVenteAtodyEstimation = nbrAtody * race.prixVenteAtody;
-      const poidsMoyenAkoho = poidsTotalAkoho / situation.nombreAkohoVivant;
+      const poidsMoyenAkoho =
+        Number(situation.nombreAkohoVivant) > 0
+          ? poidsTotalAkoho / situation.nombreAkohoVivant
+          : 0;
 
       const benefice =
         prixVente - coutSakafo - lot.prixAchat + prixVenteAtodyEstimation;
 
-      const situationLot = SituationFinanciere(
-        pool,
+      const situationLot = new SituationFinanciere(
         lot.idLot,
-        dateSituation,
-        prixVente,
         coutSakafo,
+        prixVente,
+        situation.nombreAkohoVivant,
+        situation.nombreAkohoMort,
+        nbrAtody,
         prixVenteAtodyEstimation,
         benefice,
         poidsMoyenAkoho,
@@ -185,3 +204,5 @@ class SituationFinanciereService {
     return listeSituationsFinancieres;
   }
 }
+
+module.exports = SituationFinanciereService;

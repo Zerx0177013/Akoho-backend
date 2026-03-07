@@ -12,3 +12,5 @@ class SituationFinanciere {
     }
     
 }
+
+module.exports = SituationFinanciere;

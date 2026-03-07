@@ -61,6 +61,7 @@ class GrossissementService {
     const result = await Grossissement.findByRaceAndAge(pool, idRace, age);
     return result.recordset;
   }
+  
 }
 
 module.exports = GrossissementService;
