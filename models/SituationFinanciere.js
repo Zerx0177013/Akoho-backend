@@ -1,5 +1,5 @@
 class SituationFinanciere {
-    constructor(LotId, PrixSakafoTotal, PrixVenteAkoho, nombreAkohoVivant, nombreAkohoMort, nombreAtody, prixAtodyEstimation, benefice) {
+    constructor(LotId, PrixSakafoTotal, PrixVenteAkoho, nombreAkohoVivant, nombreAkohoMort, nombreAtody, prixAtodyEstimation, benefice, poidsMoyen) {
         this.LotId = LotId;
         this.PrixSakafoTotal = PrixSakafoTotal;
         this.PrixVenteAkoho = PrixVenteAkoho;
@@ -8,6 +8,7 @@ class SituationFinanciere {
         this.nombreAtody = nombreAtody;
         this.prixAtodyEstimation = prixAtodyEstimation;
         this.benefice = benefice;
+        this.poidsMoyen = poidsMoyen;
     }
     
 }

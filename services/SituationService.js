@@ -3,8 +3,26 @@ const Lot = require("../models/Lot");
 
 class SituationService {
   static computeAgeInWeeks(dateAchat, initialAgeWeeks, dateSituation) {
-    const purchaseDate = new Date(`${dateAchat}T00:00:00Z`);
-    const situationDate = new Date(`${dateSituation}T00:00:00Z`);
+    const normalizeDate = (value) => {
+      if (value instanceof Date) {
+        return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+      }
+
+      const raw = String(value || "").trim();
+      if (!raw) return new Date("invalid");
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        return new Date(`${raw}T00:00:00Z`);
+      }
+
+      const parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) return parsed;
+
+      return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+    };
+
+    const purchaseDate = normalizeDate(dateAchat);
+    const situationDate = normalizeDate(dateSituation);
 
     if (Number.isNaN(purchaseDate.getTime()) || Number.isNaN(situationDate.getTime())) {
       throw new Error("Invalid date value");
@@ -83,7 +101,7 @@ class SituationService {
       pool,
       idLot,
       dateSituation,
-      Number(nombreAkohoVivant),
+      Number(nombreAkohoVivant) - Number(nombreAkohoMort),
       Number(nombreAkohoMort),
       Number(nombreAtody),
       Number(age),

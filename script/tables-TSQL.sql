@@ -19,6 +19,8 @@ CREATE TABLE lot (
     nombreAkoho INT NOT NULL,
     age INT NOT NULL,
     prixAchat DECIMAL(10, 2) NOT NULL,
+    idLotParent INT NULL,
+    CONSTRAINT FK_Lot_LotParent FOREIGN KEY (idLotParent) REFERENCES lot (idLot),
     CONSTRAINT FK_Lot_Race FOREIGN KEY (idRace) REFERENCES race (idRace)
 );
 

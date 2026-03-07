@@ -24,11 +24,11 @@ async function insertSampleData() {
 
     // Insert sample lots
     await pool.request().query(`
-      INSERT INTO lot (idRace, dateAchat, nombreAkoho, age)
+      INSERT INTO lot (idRace, dateAchat, nombreAkoho, age, prixAchat, idLotParent)
       VALUES
-        (1, '2026-03-01', 50, 1),
-        (2, '2026-03-02', 40, 2),
-        (3, '2026-03-03', 60, 1);
+        (1, '2026-03-01', 50, 1, 1000.00, NULL),
+        (2, '2026-03-02', 40, 2, 900.00, NULL),
+        (3, '2026-03-03', 60, 1, 1200.00, NULL);
     `);
 
     // Insert sample situations
