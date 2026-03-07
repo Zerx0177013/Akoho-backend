@@ -49,6 +49,16 @@ class EclosionService {
       0
     );
 
+    await Situation.create(
+        pool,
+        newLotResult.recordset[0].idLot,
+        dateEclosion,
+        eggsToHatch,
+        0,
+        0,
+        1
+    )
+
     return {
       sourceLotId: Number(idLot),
       nearestSituationId: Number(nearestSituation.idSituation),

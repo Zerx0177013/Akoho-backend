@@ -17,7 +17,7 @@ class LotService {
     console.log(`Creating new lot for race ${idRace}`);
 
     // Insert into database using model
-    const result = await Lot.create(
+    const result = await Lot.createAtLotCreation(
       pool,
       idRace,
       dateAchat,
@@ -26,7 +26,7 @@ class LotService {
       prixAchat,
     );
     const newLot = result.recordset[0];
-    await Situation.createAtLotCreation(
+    await Situation.create(
       pool,
       newLot.idLot,
       dateAchat,

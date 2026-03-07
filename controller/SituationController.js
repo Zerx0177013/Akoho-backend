@@ -5,15 +5,14 @@ class SituationController {
   // POST /api/situations
   static async create(req, res) {
     try {
-      const { idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age } = req.body;
+      const { idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody } = req.body;
 
       if (
         !idLot ||
         !dateSituation ||
         nombreAkohoVivant === undefined ||
         nombreAkohoMort === undefined ||
-        nombreAtody === undefined ||
-        age === undefined
+        nombreAtody === undefined
       ) {
         return res.status(400).json({ error: 'All fields are required' });
       }
@@ -25,8 +24,7 @@ class SituationController {
         dateSituation,
         nombreAkohoVivant,
         nombreAkohoMort,
-        nombreAtody,
-        age
+        nombreAtody
       );
 
       res.status(201).json({ message: 'Situation created successfully', data: result });

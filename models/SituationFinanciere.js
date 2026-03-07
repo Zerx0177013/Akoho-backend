@@ -9,5 +9,5 @@ class SituationFinanciere {
         this.prixAtodyEstimation = prixAtodyEstimation;
         this.benefice = benefice;
     }
-
+    
 }
