@@ -5,7 +5,23 @@ const LotService = require("./LotService");
 const GrossissementService = require("./GrossissementService");
 const RaceService = require("./RaceService");
 class SituationFinanciereService {
-  static async calculPoidsTotalAkoho(pool, idLot, dateSituation) {
+  static toGrossissementByAgeMap(grossissements) {
+    const map = new Map();
+    for (const g of grossissements || []) {
+      map.set(Number(g.age), g);
+    }
+    return map;
+  }
+
+  static getLastGrossissementAtOrBeforeAge(grossissementsByAge, age) {
+    for (let currentAge = Number(age); currentAge >= 0; currentAge--) {
+      const g = grossissementsByAge.get(currentAge);
+      if (g) return g;
+    }
+    return null;
+  }
+
+  static async calculPoidsTotalAkoho(pool, idLot, dateSituation, grossissementsByAge = null) {
     const situationResult = await Situation.findNearestByLotAndDate(
       pool,
       idLot,
@@ -23,66 +39,56 @@ class SituationFinanciereService {
     const differenceInMs = dateSit - dateAchat;
     const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
 
-    const grossissement0 =
-      (await GrossissementService.getGrossissementByRaceAndAge(
+    if (!grossissementsByAge) {
+      const grossissements = await GrossissementService.getGrossissementsByRace(
         pool,
         lotActuel.idRace,
-        0,
-      ))[0];
-    if (!grossissement0) return 0;
-    let totalPoidsAkoho = grossissement0.variation;
+      );
+      grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+    }
 
+    // PoidsMoyen = PoidsInitial(S0) + ΣGainHebdomadaire(S1..Sn) + ProrataJours
+    const grossissement0 = grossissementsByAge.get(0);
+    if (!grossissement0) return 0;
+
+    const poidsInitial = Number(grossissement0.variation) || 0;
+    let sommeGainHebdomadaire = 0;
+    let prorataJours = 0;
+
+    // Calculate current age in full weeks and remaining days
     const ageActuelSemaine = SituationService.computeAgeInWeeks(
       lotActuel.dateAchat,
       lotActuel.age,
       dateSituation,
     );
-
-    let semaine = 1;
-    while (semaine <= ageActuelSemaine) {
-      const g = (await GrossissementService.getGrossissementByRaceAndAge(
-        pool,
-        lotActuel.idRace,
-        semaine,
-      ))[0];
-      if (!g) break;
-      totalPoidsAkoho += g.variation;
-      semaine++;
-    }
-    semaine = ageActuelSemaine + 1;
-
-    // Phase 2
-    const diffSemaines = Math.floor(diffJours / 7);
     const resteJours = diffJours % 7;
-    semaine = ageActuelSemaine + 1;
 
-    // semaines complètes
-    let nbrSemaines = diffSemaines;
-    while (nbrSemaines > 0) {
-      const g = (await GrossissementService.getGrossissementByRaceAndAge(
-        pool,
-        lotActuel.idRace,
-        semaine,
-      ))[0];
-      if (!g) break;
-      totalPoidsAkoho += g.variation;
-      nbrSemaines--;
+    // ΣGainHebdomadaire : somme des semaines complètes écoulées
+    let semaine = 1;
+    
+    while (semaine <= ageActuelSemaine) {
+      const g = grossissementsByAge.get(semaine);
+      
+      if (g) {
+        sommeGainHebdomadaire += Number(g.variation) || 0;
+      } else {
+        // Pas de croissance après la dernière semaine disponible
+        break;
+      }
+      
       semaine++;
     }
 
-    // jours restants
+    // ProrataJours : gain proportionnel sur la semaine en cours
     if (resteJours > 0) {
-      const g = (await GrossissementService.getGrossissementByRaceAndAge(
-        pool,
-        lotActuel.idRace,
-        semaine,
-      ))[0];
-      if (g) totalPoidsAkoho += (g.variation / 7) * resteJours;
+      const g = grossissementsByAge.get(semaine);
+      if (g) prorataJours = ((Number(g.variation) || 0) / 7) * resteJours;
     }
-    return totalPoidsAkoho;
+
+    return poidsInitial + sommeGainHebdomadaire + prorataJours;
   }
 
-  static async calculPoidsSakafo(pool, idLot, dateSituation) {
+  static async calculPoidsSakafo(pool, idLot, dateSituation, grossissementsByAge = null) {
     const situationResult = await Situation.findNearestByLotAndDate(
       pool,
       idLot,
@@ -107,30 +113,51 @@ class SituationFinanciereService {
         dateSituation
     ); 
 
-    const diffSemaines = Math.floor(diffJours / 7);
     const resteJours = diffJours % 7;
-    let semaine = ageActuelSemaine + 1;
 
-    let nbrSemaines = diffSemaines;
-    while (nbrSemaines > 0) {
-      const g = (await GrossissementService.getGrossissementByRaceAndAge(
+    if (!grossissementsByAge) {
+      const grossissements = await GrossissementService.getGrossissementsByRace(
         pool,
         lotActuel.idRace,
-        semaine,
-      ))[0];
-      if (!g) break;
-      totalPoidsSakafo += g.poidsSakafo;
-      nbrSemaines--;
+      );
+      grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+    }
+    
+    // Calculate food consumed from purchase age to current age
+    let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
+      grossissementsByAge,
+      lotActuel.age,
+    );
+    let semaine = lotActuel.age + 1; // Start from the week after purchase age
+    
+    // Loop through all weeks from purchase to current age
+    while (semaine <= ageActuelSemaine) {
+      const g = grossissementsByAge.get(semaine);
+      
+      if (g) {
+        lastGrossissement = g;
+        totalPoidsSakafo += g.poidsSakafo;
+      } else if (lastGrossissement) {
+        // Use last valid record when current week has no data
+        totalPoidsSakafo += lastGrossissement.poidsSakafo;
+      } else {
+        // No data available, break
+        break;
+      }
+      
       semaine++;
     }
 
+    // Handle remaining days (partial week)
     if (resteJours > 0) {
-      const g = (await GrossissementService.getGrossissementByRaceAndAge(
-        pool,
-        lotActuel.idRace,
-        semaine,
-      ))[0];
-      if (g) totalPoidsSakafo += (g.poidsSakafo / 7) * resteJours;
+      const g = grossissementsByAge.get(semaine);
+      const gToUse = g || lastGrossissement;
+      if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
+    } else if (diffJours === 0) {
+      // Day 0: apply 1/7 of the next week feed so food cost starts immediately
+      const g = grossissementsByAge.get(lotActuel.age + 1);
+      const gToUse = g || lastGrossissement;
+      if (gToUse) totalPoidsSakafo += gToUse.poidsSakafo / 7;
     }
 
     return totalPoidsSakafo;
@@ -143,6 +170,7 @@ class SituationFinanciereService {
 
     const listeLots = await LotService.getAllLots(pool);
     const listeSituationsFinancieres = [];
+    const grossissementCacheByRace = new Map();
 
     for (const lot of listeLots) {
       const race = await RaceService.getRaceById(pool, lot.idRace);
@@ -165,25 +193,36 @@ class SituationFinanciereService {
         continue;
       }
 
+      let grossissementsByAge = grossissementCacheByRace.get(lot.idRace);
+      if (!grossissementsByAge) {
+        const grossissements = await GrossissementService.getGrossissementsByRace(
+          pool,
+          lot.idRace,
+        );
+        grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+        grossissementCacheByRace.set(lot.idRace, grossissementsByAge);
+      }
+
       const poidsTotalAkoho = await this.calculPoidsTotalAkoho(
         pool,
         lot.idLot,
         dateSituation,
+        grossissementsByAge,
       );
       const poidsSakafo = await this.calculPoidsSakafo(
         pool,
         lot.idLot,
         dateSituation,
+        grossissementsByAge,
       );
-      const prixVente = poidsTotalAkoho * race.prixVenteAkoho;
-      const coutSakafo = poidsSakafo * race.prixAchatSakafo;
+      const nombreAkohoVivant = Number(situation.nombreAkohoVivant || 0);
+      const prixVente = poidsTotalAkoho * nombreAkohoVivant * race.prixVenteAkoho;
+      const coutSakafo =
+        poidsSakafo * nombreAkohoVivant * race.prixAchatSakafo;
 
       const nbrAtody = situation.nombreAtody;
       const prixVenteAtodyEstimation = nbrAtody * race.prixVenteAtody;
-      const poidsMoyenAkoho =
-        Number(situation.nombreAkohoVivant) > 0
-          ? poidsTotalAkoho / situation.nombreAkohoVivant
-          : 0;
+      const poidsMoyenAkoho = nombreAkohoVivant > 0 ? poidsTotalAkoho : 0;
 
       const benefice =
         prixVente - coutSakafo - lot.prixAchat + prixVenteAtodyEstimation;
