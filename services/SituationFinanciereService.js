@@ -103,7 +103,7 @@ class SituationFinanciereService {
     const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
     let totalPoidsSakafo = 0;
 
-    const ageActuelSemaine = Math.floor(diffJours / 7);
+    const ageActuelSemaine = Number(lotActuel.age) + Math.floor(diffJours / 7);
 
     const resteJours = diffJours % 7;
 
