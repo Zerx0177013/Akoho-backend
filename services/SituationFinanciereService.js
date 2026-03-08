@@ -128,7 +128,7 @@ class SituationFinanciereService {
       grossissementsByAge,
       lotActuel.age,
     );
-    let semaine = lotActuel.age + 1; // Start from the week after purchase age
+    let semaine = lotActuel.age; 
     
     // Loop through all weeks from purchase to current age
     while (semaine <= ageActuelSemaine) {
@@ -138,10 +138,8 @@ class SituationFinanciereService {
         lastGrossissement = g;
         totalPoidsSakafo += g.poidsSakafo;
       } else if (lastGrossissement) {
-        // Use last valid record when current week has no data
         totalPoidsSakafo += lastGrossissement.poidsSakafo;
       } else {
-        // No data available, break
         break;
       }
       
