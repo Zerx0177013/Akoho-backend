@@ -55,15 +55,11 @@ class SituationFinanciereService {
     let sommeGainHebdomadaire = 0;
     let prorataJours = 0;
 
-    // Calculate current age in full weeks and remaining days
-    const ageActuelSemaine = SituationService.computeAgeInWeeks(
-      lotActuel.dateAchat,
-      lotActuel.age,
-      dateSituation,
-    );
+    // Calculate elapsed age since purchase in full weeks and remaining days
+    const ageActuelSemaine = Math.floor(diffJours / 7);
     const resteJours = diffJours % 7;
 
-    // ΣGainHebdomadaire : somme des semaines complètes écoulées
+    // ΣGainHebdomadaire : somme des semaines complètes écoulées depuis l'achat
     let semaine = 1;
     
     while (semaine <= ageActuelSemaine) {
@@ -107,11 +103,7 @@ class SituationFinanciereService {
     const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
     let totalPoidsSakafo = 0;
 
-    const ageActuelSemaine = SituationService.computeAgeInWeeks(
-        lotActuel.dateAchat,
-        lotActuel.age,
-        dateSituation
-    ); 
+    const ageActuelSemaine = Math.floor(diffJours / 7);
 
     const resteJours = diffJours % 7;
 
@@ -123,12 +115,12 @@ class SituationFinanciereService {
       grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
     }
     
-    // Calculate food consumed from purchase age to current age
+    // Calculate food consumed from purchase to current date
     let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
       grossissementsByAge,
-      lotActuel.age,
+      1,
     );
-    let semaine = lotActuel.age; 
+    let semaine = 1;
     
     // Loop through all weeks from purchase to current age
     while (semaine <= ageActuelSemaine) {
@@ -152,8 +144,8 @@ class SituationFinanciereService {
       const gToUse = g || lastGrossissement;
       if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
     } else if (diffJours === 0) {
-      // Day 0: apply 1/7 of the next week feed so food cost starts immediately
-      const g = grossissementsByAge.get(lotActuel.age + 1);
+      // Day 0: apply 1/7 of week 1 feed so food cost starts immediately
+      const g = grossissementsByAge.get(1);
       const gToUse = g || lastGrossissement;
       if (gToUse) totalPoidsSakafo += gToUse.poidsSakafo / 7;
     }
