@@ -44,6 +44,21 @@ CREATE TABLE grossissement (
     CONSTRAINT FK_Grossissement_Race FOREIGN KEY (idRace) REFERENCES race (idRace)
 );
 
+CREATE TABLE typeEvenement (
+    idTypeEvenement INT IDENTITY(1,1) PRIMARY KEY,
+    libelle NVARCHAR(50) NOT NULL  -- 'MORT', 'ECLOSION', 'VENTE_AKOHO', etc.
+);
+
+CREATE TABLE evenement (
+    idEvenement INT IDENTITY(1,1) PRIMARY KEY,
+    idLot INT NOT NULL,
+    idTypeEvenement INT NOT NULL,
+    dateEvenement DATE NOT NULL,
+    quantite INT NOT NULL,
+    note NVARCHAR(255) NULL,
+    CONSTRAINT FK_Evenement_Lot FOREIGN KEY (idLot) REFERENCES lot(idLot),
+    CONSTRAINT FK_Evenement_Type FOREIGN KEY (idTypeEvenement) REFERENCES typeEvenement(idTypeEvenement)
+);
 
 -- Disable all foreign keys for a table
 ALTER TABLE YourTable NOCHECK CONSTRAINT ALL;
