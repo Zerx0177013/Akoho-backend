@@ -21,7 +21,12 @@ class SituationFinanciereService {
     return null;
   }
 
-  static async calculPoidsTotalAkoho(pool, idLot, dateSituation, grossissementsByAge = null) {
+  static async calculPoidsTotalAkoho(
+    pool,
+    idLot,
+    dateSituation,
+    grossissementsByAge = null,
+  ) {
     const situationResult = await Situation.findNearestByLotAndDate(
       pool,
       idLot,
@@ -61,17 +66,17 @@ class SituationFinanciereService {
 
     // ΣGainHebdomadaire : somme des semaines complètes écoulées depuis l'achat
     let semaine = 1;
-    
+
     while (semaine <= ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
-      
+
       if (g) {
         sommeGainHebdomadaire += Number(g.variation) || 0;
       } else {
         // Pas de croissance après la dernière semaine disponible
         break;
       }
-      
+
       semaine++;
     }
 
@@ -84,7 +89,12 @@ class SituationFinanciereService {
     return poidsInitial + sommeGainHebdomadaire + prorataJours;
   }
 
-  static async calculPoidsSakafo(pool, idLot, dateSituation, grossissementsByAge = null) {
+  static async calculPoidsSakafo(
+    pool,
+    idLot,
+    dateSituation,
+    grossissementsByAge = null,
+  ) {
     const situationResult = await Situation.findNearestByLotAndDate(
       pool,
       idLot,
@@ -114,16 +124,16 @@ class SituationFinanciereService {
       );
       grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
     }
-    
+
     let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
       grossissementsByAge,
       ageActuelSemaine,
     );
     let semaine = Number(lotActuel.age);
-    
+
     while (semaine <= ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
-      
+
       if (g) {
         lastGrossissement = g;
         totalPoidsSakafo += g.poidsSakafo;
@@ -132,7 +142,7 @@ class SituationFinanciereService {
       } else {
         break;
       }
-      
+
       semaine++;
     }
 
@@ -181,10 +191,8 @@ class SituationFinanciereService {
 
       let grossissementsByAge = grossissementCacheByRace.get(lot.idRace);
       if (!grossissementsByAge) {
-        const grossissements = await GrossissementService.getGrossissementsByRace(
-          pool,
-          lot.idRace,
-        );
+        const grossissements =
+          await GrossissementService.getGrossissementsByRace(pool, lot.idRace);
         grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
         grossissementCacheByRace.set(lot.idRace, grossissementsByAge);
       }
@@ -201,10 +209,17 @@ class SituationFinanciereService {
         dateSituation,
         grossissementsByAge,
       );
+      const dateAchat = new Date(lot.dateAchat);
+      const dateSit = new Date(dateSituation);
+      const diffJours = Math.floor(
+        (dateSit - dateAchat) / (1000 * 60 * 60 * 24),
+      );
+      const ageEnSemaine = Number(lot.age) + Math.floor(diffJours / 7);
+
       const nombreAkohoVivant = Number(situation.nombreAkohoVivant || 0);
-      const prixVente = poidsTotalAkoho * nombreAkohoVivant * race.prixVenteAkoho;
-      const coutSakafo =
-        poidsSakafo * nombreAkohoVivant * race.prixAchatSakafo;
+      const prixVente =
+        poidsTotalAkoho * nombreAkohoVivant * race.prixVenteAkoho;
+      const coutSakafo = poidsSakafo * nombreAkohoVivant * race.prixAchatSakafo;
 
       const nbrAtody = situation.nombreAtody;
       const prixVenteAtodyEstimation = nbrAtody * race.prixVenteAtody;
@@ -223,6 +238,9 @@ class SituationFinanciereService {
         prixVenteAtodyEstimation,
         benefice,
         poidsMoyenAkoho,
+        race.name, // ← race name
+        lot.prixAchat, // ← prix achat
+        ageEnSemaine, // ← age calculé
       );
       listeSituationsFinancieres.push(situationLot);
     }
