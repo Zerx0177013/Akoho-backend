@@ -1,11 +1,18 @@
 const Situation = require("../models/Situation");
 const Lot = require("../models/Lot");
+const Evenement = require("../models/Evenement");
 
 class SituationService {
   static computeAgeInWeeks(dateAchat, initialAgeWeeks, dateSituation) {
     const normalizeDate = (value) => {
       if (value instanceof Date) {
-        return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+        return new Date(
+          Date.UTC(
+            value.getUTCFullYear(),
+            value.getUTCMonth(),
+            value.getUTCDate(),
+          ),
+        );
       }
 
       const raw = String(value || "").trim();
@@ -18,13 +25,22 @@ class SituationService {
       const parsed = new Date(raw);
       if (Number.isNaN(parsed.getTime())) return parsed;
 
-      return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()));
+      return new Date(
+        Date.UTC(
+          parsed.getUTCFullYear(),
+          parsed.getUTCMonth(),
+          parsed.getUTCDate(),
+        ),
+      );
     };
 
     const purchaseDate = normalizeDate(dateAchat);
     const situationDate = normalizeDate(dateSituation);
 
-    if (Number.isNaN(purchaseDate.getTime()) || Number.isNaN(situationDate.getTime())) {
+    if (
+      Number.isNaN(purchaseDate.getTime()) ||
+      Number.isNaN(situationDate.getTime())
+    ) {
       throw new Error("Invalid date value");
     }
 
@@ -86,17 +102,29 @@ class SituationService {
       throw new Error("Lot initial age must be 0 or greater");
     }
 
-    const age = SituationService.computeAgeInWeeks(lot.dateAchat, lot.age, dateSituation);
+    const age = SituationService.computeAgeInWeeks(
+      lot.dateAchat,
+      lot.age,
+      dateSituation,
+    );
 
-    // return Situation.create(
-    //   pool,
-    //   idLot,
-    //   dateSituation,
-    //   Number(nombreAkohoVivant),
-    //   Number(nombreAkohoMort),
-    //   Number(nombreAtody),
-    //   Number(age)
-    // );
+    if (Number(nombreAkohoMort) != 0) {
+      await Evenement.createDeathAkohoEvent(
+        pool,
+        idLot,
+        dateSituation,
+        nombreAkohoMort,
+      );
+    }
+    if (Number(nombreAtody) != 0) {
+      await Evenement.createAtodyDiscoveryEvent(
+        pool,
+        idLot,
+        dateSituation,
+        nombreAtody,
+      );
+    }
+
     return Situation.addQuantityToMostRecentSituation(
       pool,
       idLot,
