@@ -115,14 +115,12 @@ class SituationFinanciereService {
       grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
     }
     
-    // Calculate food consumed from purchase to current date
     let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
       grossissementsByAge,
-      1,
+      ageActuelSemaine,
     );
-    let semaine = 1;
+    let semaine = Number(lotActuel.age);
     
-    // Loop through all weeks from purchase to current age
     while (semaine <= ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
       
@@ -138,13 +136,11 @@ class SituationFinanciereService {
       semaine++;
     }
 
-    // Handle remaining days (partial week)
     if (resteJours > 0) {
       const g = grossissementsByAge.get(semaine);
       const gToUse = g || lastGrossissement;
       if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
     } else if (diffJours === 0) {
-      // Day 0: apply 1/7 of week 1 feed so food cost starts immediately
       const g = grossissementsByAge.get(1);
       const gToUse = g || lastGrossissement;
       if (gToUse) totalPoidsSakafo += gToUse.poidsSakafo / 7;
