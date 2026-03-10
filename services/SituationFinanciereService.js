@@ -60,8 +60,8 @@ class SituationFinanciereService {
     let sommeGainHebdomadaire = 0;
     let prorataJours = 0;
 
-    // Calculate elapsed age since purchase in full weeks and remaining days
-    const ageActuelSemaine = Math.floor(diffJours / 7);
+    // Calculate the chicken's actual age (initial age at purchase + elapsed weeks)
+    const ageActuelSemaine = Number(lotActuel.age) + Math.floor(diffJours / 7);
     const resteJours = diffJours % 7;
 
     // ΣGainHebdomadaire : somme des semaines complètes écoulées depuis l'achat
@@ -131,7 +131,8 @@ class SituationFinanciereService {
     );
     let semaine = Number(lotActuel.age);
 
-    while (semaine <= ageActuelSemaine) {
+    // Sum only fully completed weeks since purchase (semaine < ageActuelSemaine)
+    while (semaine < ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
 
       if (g) {
@@ -146,12 +147,13 @@ class SituationFinanciereService {
       semaine++;
     }
 
+    // Prorata for the current partial week
     if (resteJours > 0) {
       const g = grossissementsByAge.get(semaine);
       const gToUse = g || lastGrossissement;
       if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
     } else if (diffJours === 0) {
-      const g = grossissementsByAge.get(1);
+      const g = grossissementsByAge.get(Number(lotActuel.age));
       const gToUse = g || lastGrossissement;
       if (gToUse) totalPoidsSakafo += gToUse.poidsSakafo / 7;
     }
@@ -245,6 +247,30 @@ class SituationFinanciereService {
       listeSituationsFinancieres.push(situationLot);
     }
     return listeSituationsFinancieres;
+  }
+
+  static async sommeBenefice(listeSituationsFinancieres) {
+    return listeSituationsFinancieres.reduce(
+      (total, situation) => total + Number(situation.benefice || 0),
+      0,
+    );
+  }
+
+  static async sommeCoutSakafo(listeSituationsFinancieres) {
+    return listeSituationsFinancieres.reduce(
+      (total, situation) => total + Number(situation.prixSakafoTotal || 0),
+      0,
+    );
+  }
+
+  static async sommeChiffreAffaire(listeSituationsFinancieres) {
+    return listeSituationsFinancieres.reduce(
+      (total, situation) =>
+        total +
+        Number(situation.prixVenteAkoho || 0) +
+        Number(situation.prixAtodyEstimation || 0),
+      0,
+    );
   }
 }
 

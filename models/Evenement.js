@@ -63,3 +63,4 @@ class Evenement {
     );
   }
 }
+module.exports = Evenement;
