@@ -73,7 +73,6 @@ class SituationFinanciereService {
       if (g) {
         sommeGainHebdomadaire += Number(g.variation) || 0;
       } else {
-        // Pas de croissance après la dernière semaine disponible
         break;
       }
 
@@ -161,6 +160,155 @@ class SituationFinanciereService {
     return totalPoidsSakafo;
   }
 
+  /**
+   * Same as calculPoidsTotalAkoho but when lot.age === 1,
+   * the chicken doesn't grow on the purchase day (starts the day after).
+   */
+  static async calculPoidsTotalAkohoPostAchat(
+    pool,
+    idLot,
+    dateSituation,
+    grossissementsByAge = null,
+  ) {
+    const situationResult = await Situation.findNearestByLotAndDate(
+      pool,
+      idLot,
+      dateSituation,
+    );
+    const situation = situationResult.recordset[0];
+    if (!situation) {
+      throw new Error("No situation found for this lot and date");
+    }
+
+    const lotActuel = await LotService.getLotById(pool, idLot);
+    const dateAchat = new Date(lotActuel.dateAchat);
+    const dateSit = new Date(dateSituation);
+
+    const differenceInMs = dateSit - dateAchat;
+    let diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
+
+    // When age at purchase is 1, skip the purchase day
+    if (Number(lotActuel.age) === 1) {
+      diffJours = Math.max(0, diffJours - 1);
+    }
+
+    if (!grossissementsByAge) {
+      const grossissements = await GrossissementService.getGrossissementsByRace(
+        pool,
+        lotActuel.idRace,
+      );
+      grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+    }
+
+    const grossissement0 = grossissementsByAge.get(0);
+    if (!grossissement0) return 0;
+
+    const poidsInitial = Number(grossissement0.variation) || 0;
+    let sommeGainHebdomadaire = 0;
+    let prorataJours = 0;
+
+    const ageActuelSemaine = Number(lotActuel.age) + Math.floor(diffJours / 7);
+    const resteJours = diffJours % 7;
+
+    let semaine = 1;
+
+    while (semaine < ageActuelSemaine) {
+      const g = grossissementsByAge.get(semaine);
+
+      if (g) {
+        sommeGainHebdomadaire += Number(g.variation) || 0;
+      } else {
+        break;
+      }
+
+      semaine++;
+    }
+
+    if (resteJours > 0) {
+      const g = grossissementsByAge.get(semaine);
+      if (g) prorataJours = ((Number(g.variation) || 0) / 7) * resteJours;
+    }
+
+    return poidsInitial + sommeGainHebdomadaire + prorataJours;
+  }
+
+  /**
+   * Same as calculPoidsSakafo but when lot.age === 1,
+   * the chicken doesn't eat on the purchase day (starts the day after).
+   */
+  static async calculPoidsSakafoPostAchat(
+    pool,
+    idLot,
+    dateSituation,
+    grossissementsByAge = null,
+  ) {
+    const situationResult = await Situation.findNearestByLotAndDate(
+      pool,
+      idLot,
+      dateSituation,
+    );
+    const situation = situationResult.recordset[0];
+    if (!situation) {
+      throw new Error("No situation found for this lot and date");
+    }
+
+    const lotActuel = await LotService.getLotById(pool, idLot);
+    const dateAchat = new Date(lotActuel.dateAchat);
+    const dateSit = new Date(dateSituation);
+
+    const differenceInMs = dateSit - dateAchat;
+    let diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
+    let totalPoidsSakafo = 0;
+
+    // When age at purchase is 1, skip the purchase day
+    if (Number(lotActuel.age) === 1) {
+      diffJours = Math.max(0, diffJours - 1);
+    }
+
+    const ageActuelSemaine = Number(lotActuel.age) + Math.floor(diffJours / 7);
+    const resteJours = diffJours % 7;
+
+    if (!grossissementsByAge) {
+      const grossissements = await GrossissementService.getGrossissementsByRace(
+        pool,
+        lotActuel.idRace,
+      );
+      grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+    }
+
+    let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
+      grossissementsByAge,
+      ageActuelSemaine,
+    );
+    let semaine = Number(lotActuel.age);
+
+    while (semaine < ageActuelSemaine) {
+      const g = grossissementsByAge.get(semaine);
+
+      if (g) {
+        lastGrossissement = g;
+        totalPoidsSakafo += g.poidsSakafo;
+      } else if (lastGrossissement) {
+        totalPoidsSakafo += lastGrossissement.poidsSakafo;
+      } else {
+        break;
+      }
+
+      semaine++;
+    }
+
+    if (resteJours > 0) {
+      const g = grossissementsByAge.get(semaine);
+      const gToUse = g || lastGrossissement;
+      if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
+    } else if (diffJours === 0) {
+      // age 1 + diffJours forced to 0 → no food on purchase day
+      return 0;
+    }
+
+    return totalPoidsSakafo;
+  }
+
   static async calculChiffreDaffaire(pool, dateSituation) {
     if (!dateSituation) {
       throw new Error("dateSituation is required");
@@ -229,6 +377,8 @@ class SituationFinanciereService {
 
       const benefice =
         prixVente - coutSakafo - lot.prixAchat + prixVenteAtodyEstimation;
+
+        console.log(poidsSakafo);
 
       const situationLot = new SituationFinanciere(
         lot.idLot,
