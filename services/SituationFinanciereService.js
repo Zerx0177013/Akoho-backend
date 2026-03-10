@@ -88,6 +88,51 @@ class SituationFinanciereService {
     return poidsInitial + sommeGainHebdomadaire + prorataJours;
   }
 
+  /**
+   * Pure computation: cumulative food weight per chicken from dateAchat to targetDate.
+   * No DB calls – all inputs are plain values.
+   */
+  static _cumulativePoidsSakafo(lotAge, dateAchat, targetDate, grossissementsByAge) {
+    const dAchat = new Date(dateAchat);
+    const dTarget = new Date(targetDate);
+    const differenceInMs = dTarget - dAchat;
+    const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
+
+    if (diffJours <= 0) return 0;
+
+    let totalPoidsSakafo = 0;
+    const age = Number(lotAge);
+    const ageActuelSemaine = age + Math.floor(diffJours / 7);
+    const resteJours = diffJours % 7;
+
+    let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
+      grossissementsByAge,
+      ageActuelSemaine,
+    );
+    let semaine = age;
+
+    while (semaine < ageActuelSemaine) {
+      const g = grossissementsByAge.get(semaine);
+      if (g) {
+        lastGrossissement = g;
+        totalPoidsSakafo += g.poidsSakafo;
+      } else if (lastGrossissement) {
+        totalPoidsSakafo += lastGrossissement.poidsSakafo;
+      } else {
+        break;
+      }
+      semaine++;
+    }
+
+    if (resteJours > 0) {
+      const g = grossissementsByAge.get(semaine);
+      const gToUse = g || lastGrossissement;
+      if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
+    }
+
+    return totalPoidsSakafo;
+  }
+
   static async calculPoidsSakafo(
     pool,
     idLot,
@@ -158,6 +203,179 @@ class SituationFinanciereService {
     }
 
     return totalPoidsSakafo;
+  }
+
+  /**
+   * Calculates the total weighted food consumption across all situations of a lot.
+   *
+   * Instead of: totalFoodPerChicken × currentAliveCount (inaccurate),
+   * we compute:  Σ (foodPerChickenInSegment × aliveCountDuringSegment)
+   *
+   * Each segment spans from one situation's date to the next (or to dateSituation
+   * for the last segment). Dead chickens are properly accounted for because they
+   * are only counted in the segments where they were still alive.
+   *
+   * Returns the total weighted poidsSakafo (food weight, not money).
+   * Multiply by prixAchatSakafo to get the monetary cost.
+   */
+  static async calculPoidsSakafoWeighted(
+    pool,
+    idLot,
+    dateSituation,
+    grossissementsByAge = null,
+  ) {
+    const lotActuel = await LotService.getLotById(pool, idLot);
+    const dateAchat = new Date(lotActuel.dateAchat);
+    const dateSit = new Date(dateSituation);
+
+    if (dateSit < dateAchat) return 0;
+
+    if (!grossissementsByAge) {
+      const grossissements = await GrossissementService.getGrossissementsByRace(
+        pool,
+        lotActuel.idRace,
+      );
+      grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+    }
+
+    // Fetch all situations for this lot up to dateSituation, ordered by date ASC
+    const allSituationsResult = await Situation.findByLotBeforeDate(
+      pool,
+      idLot,
+      dateSituation,
+    );
+    const situations = allSituationsResult.recordset;
+
+    if (!situations || situations.length === 0) return 0;
+
+    let totalWeightedPoidsSakafo = 0;
+
+    for (let i = 0; i < situations.length; i++) {
+      const currentSituation = situations[i];
+      const segmentStart = new Date(currentSituation.dateSituation);
+
+      // Segment end = next situation's date, or dateSituation for the last segment
+      let segmentEnd;
+      if (i + 1 < situations.length) {
+        segmentEnd = new Date(situations[i + 1].dateSituation);
+      } else {
+        segmentEnd = dateSit;
+      }
+
+      // Skip zero-duration segments (unless it's the only/last segment on dateSituation)
+      if (segmentStart >= segmentEnd) continue;
+
+      // Food per chicken from dateAchat→segmentEnd minus dateAchat→segmentStart
+      const cumulativeAtStart = this._cumulativePoidsSakafo(
+        lotActuel.age,
+        dateAchat,
+        segmentStart,
+        grossissementsByAge,
+      );
+      const cumulativeAtEnd = this._cumulativePoidsSakafo(
+        lotActuel.age,
+        dateAchat,
+        segmentEnd,
+        grossissementsByAge,
+      );
+      const segmentPoidsSakafo = cumulativeAtEnd - cumulativeAtStart;
+
+      // Multiply by the number of living chickens during this segment
+      const nombreVivant = Number(currentSituation.nombreAkohoVivant || 0);
+      totalWeightedPoidsSakafo += segmentPoidsSakafo * nombreVivant;
+    }
+
+    return totalWeightedPoidsSakafo;
+  }
+
+  /**
+   * Same as calculPoidsSakafoWeighted but when lot.age === 1,
+   * the chicken doesn't eat on the purchase day (starts the day after).
+   */
+  static async calculPoidsSakafoWeightedPostAchat(
+    pool,
+    idLot,
+    dateSituation,
+    grossissementsByAge = null,
+  ) {
+    const lotActuel = await LotService.getLotById(pool, idLot);
+    const dateAchat = new Date(lotActuel.dateAchat);
+    const dateSit = new Date(dateSituation);
+
+    if (dateSit < dateAchat) return 0;
+
+    // When age at purchase is 1, feeding starts the day after purchase
+    const effectiveDateAchat =
+      Number(lotActuel.age) === 1
+        ? new Date(dateAchat.getTime() + 24 * 60 * 60 * 1000)
+        : dateAchat;
+
+    if (dateSit < effectiveDateAchat) return 0;
+
+    if (!grossissementsByAge) {
+      const grossissements = await GrossissementService.getGrossissementsByRace(
+        pool,
+        lotActuel.idRace,
+      );
+      grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+    }
+
+    // Fetch all situations for this lot up to dateSituation, ordered by date ASC
+    const allSituationsResult = await Situation.findByLotBeforeDate(
+      pool,
+      idLot,
+      dateSituation,
+    );
+    const situations = allSituationsResult.recordset;
+
+    if (!situations || situations.length === 0) return 0;
+
+    let totalWeightedPoidsSakafo = 0;
+
+    for (let i = 0; i < situations.length; i++) {
+      const currentSituation = situations[i];
+      let segmentStart = new Date(currentSituation.dateSituation);
+
+      // Clamp segment start to effectiveDateAchat (skip the purchase day)
+      if (segmentStart < effectiveDateAchat) {
+        segmentStart = effectiveDateAchat;
+      }
+
+      // Segment end = next situation's date, or dateSituation for the last segment
+      let segmentEnd;
+      if (i + 1 < situations.length) {
+        segmentEnd = new Date(situations[i + 1].dateSituation);
+      } else {
+        segmentEnd = dateSit;
+      }
+
+      // Clamp segment end too
+      if (segmentEnd < effectiveDateAchat) continue;
+
+      // Skip zero-duration segments
+      if (segmentStart >= segmentEnd) continue;
+
+      // Food per chicken: cumulative from effectiveDateAchat→segmentEnd minus effectiveDateAchat→segmentStart
+      const cumulativeAtStart = this._cumulativePoidsSakafo(
+        lotActuel.age,
+        effectiveDateAchat,
+        segmentStart,
+        grossissementsByAge,
+      );
+      const cumulativeAtEnd = this._cumulativePoidsSakafo(
+        lotActuel.age,
+        effectiveDateAchat,
+        segmentEnd,
+        grossissementsByAge,
+      );
+      const segmentPoidsSakafo = cumulativeAtEnd - cumulativeAtStart;
+
+      // Multiply by the number of living chickens during this segment
+      const nombreVivant = Number(currentSituation.nombreAkohoVivant || 0);
+      totalWeightedPoidsSakafo += segmentPoidsSakafo * nombreVivant;
+    }
+
+    return totalWeightedPoidsSakafo;
   }
 
   /**
@@ -353,7 +571,9 @@ class SituationFinanciereService {
         dateSituation,
         grossissementsByAge,
       );
-      const poidsSakafo = await this.calculPoidsSakafo(
+
+      // Weighted food cost: accounts for mortality across all situations
+      const poidsSakafoWeighted = await this.calculPoidsSakafoWeighted(
         pool,
         lot.idLot,
         dateSituation,
@@ -369,7 +589,8 @@ class SituationFinanciereService {
       const nombreAkohoVivant = Number(situation.nombreAkohoVivant || 0);
       const prixVente =
         poidsTotalAkoho * nombreAkohoVivant * race.prixVenteAkoho;
-      const coutSakafo = poidsSakafo * nombreAkohoVivant * race.prixAchatSakafo;
+      // poidsSakafoWeighted already includes the per-segment chicken counts
+      const coutSakafo = poidsSakafoWeighted * race.prixAchatSakafo;
 
       const nbrAtody = situation.nombreAtody;
       const prixVenteAtodyEstimation = nbrAtody * race.prixVenteAtody;
@@ -377,8 +598,6 @@ class SituationFinanciereService {
 
       const benefice =
         prixVente - coutSakafo - lot.prixAchat + prixVenteAtodyEstimation;
-
-        console.log(poidsSakafo);
 
       const situationLot = new SituationFinanciere(
         lot.idLot,
