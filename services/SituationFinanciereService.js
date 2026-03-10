@@ -67,7 +67,7 @@ class SituationFinanciereService {
     // ΣGainHebdomadaire : somme des semaines complètes écoulées depuis l'achat
     let semaine = 1;
 
-    while (semaine <= ageActuelSemaine) {
+    while (semaine < ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
 
       if (g) {
