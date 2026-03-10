@@ -53,7 +53,7 @@ class OeufDefaillantService {
       eggsToRemove,
     );
 
-    await Situation.addQuantityToMostRecentSituation(
+    await Situation.create(
       pool,
       Number(idLot),
       dateOeufDefaillant,
