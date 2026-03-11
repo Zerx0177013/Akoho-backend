@@ -13,4 +13,6 @@ DROP TABLE grossissement;
 
 
 DELETE FROM lot;
+DELETE FROM race;
+DELETE FROM grossissement;
 DELETE FROM situation;

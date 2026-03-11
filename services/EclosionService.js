@@ -47,7 +47,8 @@ class EclosionService {
       eggsToHatch,
       1,
       0,
-      Number(idLot)
+      Number(idLot),
+      0,
     );
 
     await Situation.create(

@@ -17,6 +17,7 @@ CREATE TABLE lot(
     nombreAkoho INT NOT NULL,
     prixAchat DECIMAL(10, 2) NOT NULL,
     age INT NOT NULL,
+    poidsInitial DECIMAL(10, 2) NOT NULL DEFAULT 0,
     FOREIGN KEY (idRace) REFERENCES race(idRace)
 );
 

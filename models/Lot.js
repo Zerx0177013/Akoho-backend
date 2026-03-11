@@ -1,5 +1,14 @@
 class Lot {
-  constructor(idLot, idRace, dateAchat, nombreAkoho, age, prixAchat, idLotParent = null) {
+  constructor(
+    idLot,
+    idRace,
+    dateAchat,
+    nombreAkoho,
+    age,
+    prixAchat,
+    idLotParent = null,
+    poidsInitial = 0,
+  ) {
     this.idLot = idLot;
     this.idRace = idRace;
     this.dateAchat = dateAchat;
@@ -7,11 +16,21 @@ class Lot {
     this.age = age;
     this.prixAchat = prixAchat;
     this.idLotParent = idLotParent;
+    this.poidsInitial = poidsInitial;
   }
 
-  static async create(pool, idRace, dateAchat, nombreAkoho, age, prixAchat, idLotParent = null) {
-    const query = `INSERT INTO lot (idRace, dateAchat, nombreAkoho, age, prixAchat, idLotParent)
-                   VALUES (@idRace, @dateAchat, @nombreAkoho, @age, @prixAchat, @idLotParent)`;
+  static async create(
+    pool,
+    idRace,
+    dateAchat,
+    nombreAkoho,
+    age,
+    prixAchat,
+    idLotParent = null,
+    poidsInitial = 0,
+  ) {
+    const query = `INSERT INTO lot (idRace, dateAchat, nombreAkoho, age, prixAchat, idLotParent, poidsInitial)
+                   VALUES (@idRace, @dateAchat, @nombreAkoho, @age, @prixAchat, @idLotParent, @poidsInitial)`;
     const request = pool.request();
     request.input("idRace", idRace);
     request.input("dateAchat", dateAchat);
@@ -19,6 +38,7 @@ class Lot {
     request.input("age", age);
     request.input("prixAchat", prixAchat);
     request.input("idLotParent", idLotParent ?? null);
+    request.input("poidsInitial", poidsInitial ?? 0);
     return request.query(query);
   }
   static async createAtLotCreation(
@@ -29,10 +49,11 @@ class Lot {
     age,
     prixAchat,
     idLotParent = null,
+    poidsInitial = 0,
   ) {
-    const query = `INSERT INTO lot (idRace, dateAchat, nombreAkoho, age, prixAchat, idLotParent)
+    const query = `INSERT INTO lot (idRace, dateAchat, nombreAkoho, age, prixAchat, idLotParent, poidsInitial)
                    OUTPUT INSERTED.idLot
-                   VALUES (@idRace, @dateAchat, @nombreAkoho, @age, @prixAchat, @idLotParent)`;
+                   VALUES (@idRace, @dateAchat, @nombreAkoho, @age, @prixAchat, @idLotParent, @poidsInitial)`;
     const request = pool.request();
     request.input("idRace", idRace);
     request.input("dateAchat", dateAchat);
@@ -40,6 +61,7 @@ class Lot {
     request.input("age", age);
     request.input("prixAchat", prixAchat);
     request.input("idLotParent", idLotParent ?? null);
+    request.input("poidsInitial", poidsInitial ?? 0);
     return request.query(query);
   }
 

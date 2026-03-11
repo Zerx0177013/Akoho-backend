@@ -56,17 +56,23 @@ class SituationFinanciereService {
     const grossissement0 = grossissementsByAge.get(0);
     if (!grossissement0) return 0;
 
-    const poidsInitial = Number(grossissement0.variation) || 0;
+    const isFromEclosion =
+      lotActuel.idLotParent !== null && lotActuel.idLotParent !== undefined;
+    const poidsInitial =
+      isFromEclosion
+        ? Number(grossissement0.variation) || 0
+        : Number(lotActuel.poidsInitial) || Number(grossissement0.variation) || 0;
     let sommeGainHebdomadaire = 0;
     let prorataJours = 0;
 
-    // Calculate the chicken's actual age (initial age at purchase + elapsed weeks)
-    const ageActuelSemaine = Number(lotActuel.age) + Math.floor(diffJours / 7);
+    // Growth schedule starts from lot age week + 1 (purchased at age N -> first growth week is N+1)
+    const ageLot = Number(lotActuel.age);
+    const scheduleAgeBase = ageLot + 1;
+    const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7);
     const resteJours = diffJours % 7;
 
-    // ΣGainHebdomadaire : somme des semaines complètes écoulées depuis l'achat
-    let semaine = 1;
-
+    // ΣGainHebdomadaire : sum of fully completed weeks since purchase
+    let semaine = scheduleAgeBase;
     while (semaine < ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
 
@@ -102,14 +108,15 @@ class SituationFinanciereService {
 
     let totalPoidsSakafo = 0;
     const age = Number(lotAge);
-    const ageActuelSemaine = age + Math.floor(diffJours / 7);
+    const scheduleAgeBase = age + 1;
+    const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7);
     const resteJours = diffJours % 7;
 
     let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
       grossissementsByAge,
       ageActuelSemaine,
     );
-    let semaine = age;
+    let semaine = scheduleAgeBase;
 
     while (semaine < ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
@@ -157,7 +164,9 @@ class SituationFinanciereService {
     const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
     let totalPoidsSakafo = 0;
 
-    const ageActuelSemaine = Number(lotActuel.age) + Math.floor(diffJours / 7);
+    const ageLot = Number(lotActuel.age);
+    const scheduleAgeBase = ageLot + 1;
+    const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7);
 
     const resteJours = diffJours % 7;
 
@@ -173,7 +182,7 @@ class SituationFinanciereService {
       grossissementsByAge,
       ageActuelSemaine,
     );
-    let semaine = Number(lotActuel.age);
+    let semaine = scheduleAgeBase;
 
     // Sum only fully completed weeks since purchase (semaine < ageActuelSemaine)
     while (semaine < ageActuelSemaine) {
@@ -197,7 +206,7 @@ class SituationFinanciereService {
       const gToUse = g || lastGrossissement;
       if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
     } else if (diffJours === 0) {
-      const g = grossissementsByAge.get(Number(lotActuel.age));
+      const g = grossissementsByAge.get(scheduleAgeBase);
       const gToUse = g || lastGrossissement;
       if (gToUse) totalPoidsSakafo += gToUse.poidsSakafo / 7;
     }
@@ -421,15 +430,21 @@ class SituationFinanciereService {
     const grossissement0 = grossissementsByAge.get(0);
     if (!grossissement0) return 0;
 
-    const poidsInitial = Number(grossissement0.variation) || 0;
+    const isFromEclosion =
+      lotActuel.idLotParent !== null && lotActuel.idLotParent !== undefined;
+    const poidsInitial =
+      isFromEclosion
+        ? Number(grossissement0.variation) || 0
+        : Number(lotActuel.poidsInitial) || Number(grossissement0.variation) || 0;
     let sommeGainHebdomadaire = 0;
     let prorataJours = 0;
 
-    const ageActuelSemaine = Number(lotActuel.age) + Math.floor(diffJours / 7);
+    const ageLot = Number(lotActuel.age);
+    const scheduleAgeBase = ageLot + 1;
+    const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7);
     const resteJours = diffJours % 7;
 
-    let semaine = 1;
-
+    let semaine = scheduleAgeBase;
     while (semaine < ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
 
@@ -483,7 +498,9 @@ class SituationFinanciereService {
       diffJours = Math.max(0, diffJours - 1);
     }
 
-    const ageActuelSemaine = Number(lotActuel.age) + Math.floor(diffJours / 7);
+    const ageLot = Number(lotActuel.age);
+    const scheduleAgeBase = ageLot + 1;
+    const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7);
     const resteJours = diffJours % 7;
 
     if (!grossissementsByAge) {
@@ -498,7 +515,7 @@ class SituationFinanciereService {
       grossissementsByAge,
       ageActuelSemaine,
     );
-    let semaine = Number(lotActuel.age);
+    let semaine = scheduleAgeBase;
 
     while (semaine < ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
@@ -521,7 +538,10 @@ class SituationFinanciereService {
       if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
     } else if (diffJours === 0) {
       // age 1 + diffJours forced to 0 → no food on purchase day
-      return 0;
+      if (Number(lotActuel.age) === 1) return 0;
+      const g = grossissementsByAge.get(scheduleAgeBase);
+      const gToUse = g || lastGrossissement;
+      if (gToUse) totalPoidsSakafo += gToUse.poidsSakafo / 7;
     }
 
     return totalPoidsSakafo;

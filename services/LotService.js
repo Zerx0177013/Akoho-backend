@@ -4,7 +4,15 @@ const Lot = require("../models/Lot");
 const Situation = require("../models/Situation");
 
 class LotService {
-  static async createLot(pool, idRace, dateAchat, nombreAkoho, age, prixAchat) {
+  static async createLot(
+    pool,
+    idRace,
+    dateAchat,
+    nombreAkoho,
+    age,
+    prixAchat,
+    poidsInitial,
+  ) {
     // Validation
     if (!idRace) throw new Error("Race ID is required");
     if (!dateAchat) throw new Error("Date Achat is required");
@@ -13,6 +21,13 @@ class LotService {
     if (Number(age) < 0) throw new Error("Age cannot be negative");
     if (prixAchat === null || prixAchat === undefined || Number(prixAchat) <= 0)
       throw new Error("Prix d'achat must be greater than 0");
+    if (
+      poidsInitial === null ||
+      poidsInitial === undefined ||
+      Number(poidsInitial) < 0
+    ) {
+      throw new Error("Poids initial must be 0 or greater");
+    }
 
     // Business logic
     console.log(`Creating new lot for race ${idRace}`);
@@ -30,6 +45,7 @@ class LotService {
         age,
         prixAchat,
         null,
+        Number(poidsInitial),
       );
 
       const newLot = result.recordset?.[0];
