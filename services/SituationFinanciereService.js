@@ -21,28 +21,98 @@ class SituationFinanciereService {
     return null;
   }
 
+  // static async calculPoidsTotalAkoho(
+  //   pool,
+  //   idLot,
+  //   dateSituation,
+  //   grossissementsByAge = null,
+  // ) {
+  //   const situationResult = await Situation.findNearestByLotAndDate(
+  //     pool,
+  //     idLot,
+  //     dateSituation,
+  //   );
+  //   const situation = situationResult.recordset[0];
+  //   if (!situation) {
+  //     throw new Error("No situation found for this lot and date");
+  //   }
+
+  //   const lotActuel = await LotService.getLotById(pool, idLot);
+  //   const dateAchat = new Date(lotActuel.dateAchat);
+  //   const dateSit = new Date(dateSituation);
+
+  //   const differenceInMs = dateSit - dateAchat;
+  //   const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
+
+  //   if (!grossissementsByAge) {
+  //     const grossissements = await GrossissementService.getGrossissementsByRace(
+  //       pool,
+  //       lotActuel.idRace,
+  //     );
+  //     grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+  //   }
+
+  //   // PoidsMoyen = PoidsInitial(S0) + ΣGainHebdomadaire(S1..Sn) + ProrataJours
+  //   const grossissement0 = grossissementsByAge.get(0);
+  //   if (!grossissement0) return 0;
+
+  //   const isFromEclosion =
+  //     lotActuel.idLotParent !== null && lotActuel.idLotParent !== undefined;
+  //   const poidsInitial = isFromEclosion
+  //     ? Number(grossissement0.variation) || 0
+  //     : Number(lotActuel.poidsInitial) || Number(grossissement0.variation) || 0;
+  //   let sommeGainHebdomadaire = 0;
+  //   let prorataJours = 0;
+
+  //   // Growth schedule starts from lot age week + 1 (purchased at age N -> first growth week is N+1)
+  //   const ageLot = Number(lotActuel.age);
+  //   const scheduleAgeBase = ageLot + 1;
+  //   const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7);
+  //   const resteJours = diffJours % 7;
+
+  //   // ΣGainHebdomadaire : sum of fully completed weeks since purchase
+  //   let semaine = scheduleAgeBase;
+  //   while (semaine < ageActuelSemaine) {
+  //     const g = grossissementsByAge.get(semaine);
+
+  //     if (g) {
+  //       sommeGainHebdomadaire += Number(g.variation) || 0;
+  //     } else {
+  //       break;
+  //     }
+
+  //     semaine++;
+  //   }
+
+  //   // ProrataJours : gain proportionnel sur la semaine en cours
+  //   if (resteJours > 0) {
+  //     const g = grossissementsByAge.get(semaine);
+  //     if (g) prorataJours = ((Number(g.variation) || 0) / 7) * resteJours;
+  //   }
+
+  //   return poidsInitial + sommeGainHebdomadaire + prorataJours;
+  // }
+
   static async calculPoidsTotalAkoho(
     pool,
     idLot,
     dateSituation,
     grossissementsByAge = null,
   ) {
-    const situationResult = await Situation.findNearestByLotAndDate(
-      pool,
-      idLot,
-      dateSituation,
-    );
-    const situation = situationResult.recordset[0];
-    if (!situation) {
-      throw new Error("No situation found for this lot and date");
-    }
-
+    // ... (récupération situation et lot inchangée) ...
     const lotActuel = await LotService.getLotById(pool, idLot);
     const dateAchat = new Date(lotActuel.dateAchat);
     const dateSit = new Date(dateSituation);
 
+    // Normalisation pour inclure le jour même
+    dateAchat.setHours(0, 0, 0, 0);
+    dateSit.setHours(0, 0, 0, 0);
+
     const differenceInMs = dateSit - dateAchat;
-    const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
+    // +1 pour que le jour de l'achat compte comme le 1er jour de croissance
+    const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24)) + 1;
+
+    if (diffJours < 1) return 0; // Sécurité
 
     if (!grossissementsByAge) {
       const grossissements = await GrossissementService.getGrossissementsByRace(
@@ -52,40 +122,38 @@ class SituationFinanciereService {
       grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
     }
 
-    // PoidsMoyen = PoidsInitial(S0) + ΣGainHebdomadaire(S1..Sn) + ProrataJours
     const grossissement0 = grossissementsByAge.get(0);
     if (!grossissement0) return 0;
 
     const isFromEclosion =
       lotActuel.idLotParent !== null && lotActuel.idLotParent !== undefined;
-    const poidsInitial =
-      isFromEclosion
-        ? Number(grossissement0.variation) || 0
-        : Number(lotActuel.poidsInitial) || Number(grossissement0.variation) || 0;
+    const poidsInitial = isFromEclosion
+      ? Number(grossissement0.variation) || 0
+      : Number(lotActuel.poidsInitial) || Number(grossissement0.variation) || 0;
+
     let sommeGainHebdomadaire = 0;
     let prorataJours = 0;
 
-    // Growth schedule starts from lot age week + 1 (purchased at age N -> first growth week is N+1)
     const ageLot = Number(lotActuel.age);
     const scheduleAgeBase = ageLot + 1;
-    const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7);
-    const resteJours = diffJours % 7;
 
-    // ΣGainHebdomadaire : sum of fully completed weeks since purchase
+    // On calcule l'âge actuel en fonction du diffJours inclusif
+    // (diffJours - 1) car le 7ème jour doit clore la semaine
+    const ageActuelSemaine = scheduleAgeBase + Math.floor((diffJours - 1) / 7);
+    const resteJours = ((diffJours - 1) % 7) + 1;
+
     let semaine = scheduleAgeBase;
     while (semaine < ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
-
       if (g) {
         sommeGainHebdomadaire += Number(g.variation) || 0;
       } else {
         break;
       }
-
       semaine++;
     }
 
-    // ProrataJours : gain proportionnel sur la semaine en cours
+    // ProrataJours : calculé dès le premier jour (resteJours sera au moins 1)
     if (resteJours > 0) {
       const g = grossissementsByAge.get(semaine);
       if (g) prorataJours = ((Number(g.variation) || 0) / 7) * resteJours;
@@ -93,30 +161,85 @@ class SituationFinanciereService {
 
     return poidsInitial + sommeGainHebdomadaire + prorataJours;
   }
-
   /**
    * Pure computation: cumulative food weight per chicken from dateAchat to targetDate.
    * No DB calls – all inputs are plain values.
    */
-  static _cumulativePoidsSakafo(lotAge, dateAchat, targetDate, grossissementsByAge) {
+  // static _cumulativePoidsSakafo(lotAge, dateAchat, targetDate, grossissementsByAge) {
+  //   const dAchat = new Date(dateAchat);
+  //   const dTarget = new Date(targetDate);
+  //   const differenceInMs = dTarget - dAchat;
+  //   const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
+
+  //   if (diffJours <= 0) return 0;
+
+  //   let totalPoidsSakafo = 0;
+  //   const age = Number(lotAge);
+  //   const scheduleAgeBase = age + 1;
+  //   const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7) + 1;
+  //   const resteJours = diffJours % 7;
+
+  //   let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
+  //     grossissementsByAge,
+  //     ageActuelSemaine,
+  //   );
+  //   let semaine = scheduleAgeBase;
+
+  //   while (semaine < ageActuelSemaine) {
+  //     const g = grossissementsByAge.get(semaine);
+  //     if (g) {
+  //       lastGrossissement = g;
+  //       totalPoidsSakafo += g.poidsSakafo;
+  //     } else if (lastGrossissement) {
+  //       totalPoidsSakafo += lastGrossissement.poidsSakafo;
+  //     } else {
+  //       break;
+  //     }
+  //     semaine++;
+  //   }
+
+  //   if (resteJours > 0) {
+  //     const g = grossissementsByAge.get(semaine);
+  //     const gToUse = g || lastGrossissement;
+  //     if (gToUse) totalPoidsSakafo += (gToUse.poidsSakafo / 7) * resteJours;
+  //   }
+
+  //   return totalPoidsSakafo;
+  // }
+
+  static _cumulativePoidsSakafo(
+    lotAge,
+    dateAchat,
+    targetDate,
+    grossissementsByAge,
+  ) {
     const dAchat = new Date(dateAchat);
     const dTarget = new Date(targetDate);
-    const differenceInMs = dTarget - dAchat;
-    const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24));
 
-    if (diffJours <= 0) return 0;
+    // On met les deux dates à minuit pour comparer uniquement les jours calendaires
+    dAchat.setHours(0, 0, 0, 0);
+    dTarget.setHours(0, 0, 0, 0);
+
+    const differenceInMs = dTarget - dAchat;
+    // +1 pour inclure le jour même (J+0 = 1 jour de consommation)
+    const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24)) + 1;
+
+    // Sécurité : si la date cible est vraiment avant l'achat
+    if (diffJours < 1) return 0;
 
     let totalPoidsSakafo = 0;
     const age = Number(lotAge);
     const scheduleAgeBase = age + 1;
-    const ageActuelSemaine = scheduleAgeBase + Math.floor(diffJours / 7);
-    const resteJours = diffJours % 7;
 
+    // Le calcul des semaines et jours reste basé sur ce diffJours inclusif
+    const ageActuelSemaine = scheduleAgeBase + Math.floor((diffJours - 1) / 7);
+    const resteJours = ((diffJours - 1) % 7) + 1;
+
+    let semaine = scheduleAgeBase;
     let lastGrossissement = this.getLastGrossissementAtOrBeforeAge(
       grossissementsByAge,
       ageActuelSemaine,
     );
-    let semaine = scheduleAgeBase;
 
     while (semaine < ageActuelSemaine) {
       const g = grossissementsByAge.get(semaine);
@@ -125,8 +248,6 @@ class SituationFinanciereService {
         totalPoidsSakafo += g.poidsSakafo;
       } else if (lastGrossissement) {
         totalPoidsSakafo += lastGrossissement.poidsSakafo;
-      } else {
-        break;
       }
       semaine++;
     }
@@ -227,6 +348,75 @@ class SituationFinanciereService {
    * Returns the total weighted poidsSakafo (food weight, not money).
    * Multiply by prixAchatSakafo to get the monetary cost.
    */
+  // static async calculPoidsSakafoWeighted(
+  //   pool,
+  //   idLot,
+  //   dateSituation,
+  //   grossissementsByAge = null,
+  // ) {
+  //   const lotActuel = await LotService.getLotById(pool, idLot);
+  //   const dateAchat = new Date(lotActuel.dateAchat);
+  //   const dateSit = new Date(dateSituation);
+
+  //   if (dateSit < dateAchat) return 0;
+
+  //   if (!grossissementsByAge) {
+  //     const grossissements = await GrossissementService.getGrossissementsByRace(
+  //       pool,
+  //       lotActuel.idRace,
+  //     );
+  //     grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+  //   }
+
+  //   // Fetch all situations for this lot up to dateSituation, ordered by date ASC
+  //   const allSituationsResult = await Situation.findByLotBeforeDate(
+  //     pool,
+  //     idLot,
+  //     dateSituation,
+  //   );
+  //   const situations = allSituationsResult.recordset;
+
+  //   if (!situations || situations.length === 0) return 0;
+
+  //   let totalWeightedPoidsSakafo = 0;
+
+  //   for (let i = 0; i < situations.length; i++) {
+  //     const currentSituation = situations[i];
+  //     const segmentStart = new Date(currentSituation.dateSituation);
+
+  //     // Segment end = next situation's date, or dateSituation for the last segment
+  //     let segmentEnd;
+  //     if (i + 1 < situations.length) {
+  //       segmentEnd = new Date(situations[i + 1].dateSituation);
+  //     } else {
+  //       segmentEnd = dateSit;
+  //     }
+
+  //     // Skip zero-duration segments (unless it's the only/last segment on dateSituation)
+  //     if (segmentStart >= segmentEnd) continue;
+
+  //     // Food per chicken from dateAchat→segmentEnd minus dateAchat→segmentStart
+  //     const cumulativeAtStart = this._cumulativePoidsSakafo(
+  //       lotActuel.age,
+  //       dateAchat,
+  //       segmentStart,
+  //       grossissementsByAge,
+  //     );
+  //     const cumulativeAtEnd = this._cumulativePoidsSakafo(
+  //       lotActuel.age,
+  //       dateAchat,
+  //       segmentEnd,
+  //       grossissementsByAge,
+  //     );
+  //     const segmentPoidsSakafo = cumulativeAtEnd - cumulativeAtStart;
+
+  //     // Multiply by the number of living chickens during this segment
+  //     const nombreVivant = Number(currentSituation.nombreAkohoVivant || 0);
+  //     totalWeightedPoidsSakafo += segmentPoidsSakafo * nombreVivant;
+  //   }
+
+  //   return totalWeightedPoidsSakafo;
+  // }
   static async calculPoidsSakafoWeighted(
     pool,
     idLot,
@@ -236,6 +426,10 @@ class SituationFinanciereService {
     const lotActuel = await LotService.getLotById(pool, idLot);
     const dateAchat = new Date(lotActuel.dateAchat);
     const dateSit = new Date(dateSituation);
+
+    // Normalisation pour ignorer les heures/minutes
+    dateAchat.setHours(0, 0, 0, 0);
+    dateSit.setHours(0, 0, 0, 0);
 
     if (dateSit < dateAchat) return 0;
 
@@ -247,7 +441,6 @@ class SituationFinanciereService {
       grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
     }
 
-    // Fetch all situations for this lot up to dateSituation, ordered by date ASC
     const allSituationsResult = await Situation.findByLotBeforeDate(
       pool,
       idLot,
@@ -262,34 +455,45 @@ class SituationFinanciereService {
     for (let i = 0; i < situations.length; i++) {
       const currentSituation = situations[i];
       const segmentStart = new Date(currentSituation.dateSituation);
+      segmentStart.setHours(0, 0, 0, 0);
 
-      // Segment end = next situation's date, or dateSituation for the last segment
       let segmentEnd;
       if (i + 1 < situations.length) {
         segmentEnd = new Date(situations[i + 1].dateSituation);
       } else {
         segmentEnd = dateSit;
       }
+      segmentEnd.setHours(0, 0, 0, 0);
 
-      // Skip zero-duration segments (unless it's the only/last segment on dateSituation)
-      if (segmentStart >= segmentEnd) continue;
+      // Skip segments incohérents
+      if (segmentStart > segmentEnd) continue;
 
-      // Food per chicken from dateAchat→segmentEnd minus dateAchat→segmentStart
-      const cumulativeAtStart = this._cumulativePoidsSakafo(
-        lotActuel.age,
-        dateAchat,
-        segmentStart,
-        grossissementsByAge,
-      );
+      // CALCUL DU SEGMENT INCLUSIF
       const cumulativeAtEnd = this._cumulativePoidsSakafo(
         lotActuel.age,
         dateAchat,
         segmentEnd,
         grossissementsByAge,
       );
-      const segmentPoidsSakafo = cumulativeAtEnd - cumulativeAtStart;
 
-      // Multiply by the number of living chickens during this segment
+      let segmentPoidsSakafo;
+
+      // Si la situation commence le jour même de l'achat
+      if (segmentStart.getTime() === dateAchat.getTime()) {
+        // On prend tout le cumulé jusqu'à la fin du segment (incluant J+0)
+        segmentPoidsSakafo = cumulativeAtEnd;
+      } else {
+        // Sinon, on fait la différence classique
+        const cumulativeAtStart = this._cumulativePoidsSakafo(
+          lotActuel.age,
+          dateAchat,
+          segmentStart,
+          grossissementsByAge,
+        );
+        // On recule d'un jour le start pour ne pas soustraire la ration du jour de transition
+        segmentPoidsSakafo = cumulativeAtEnd - cumulativeAtStart;
+      }
+
       const nombreVivant = Number(currentSituation.nombreAkohoVivant || 0);
       totalWeightedPoidsSakafo += segmentPoidsSakafo * nombreVivant;
     }
@@ -432,10 +636,9 @@ class SituationFinanciereService {
 
     const isFromEclosion =
       lotActuel.idLotParent !== null && lotActuel.idLotParent !== undefined;
-    const poidsInitial =
-      isFromEclosion
-        ? Number(grossissement0.variation) || 0
-        : Number(lotActuel.poidsInitial) || Number(grossissement0.variation) || 0;
+    const poidsInitial = isFromEclosion
+      ? Number(grossissement0.variation) || 0
+      : Number(lotActuel.poidsInitial) || Number(grossissement0.variation) || 0;
     let sommeGainHebdomadaire = 0;
     let prorataJours = 0;
 
