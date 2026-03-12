@@ -52,6 +52,19 @@ class Situation {
     `);
   }
 
+  static async findMostRecentByLotBeforeDate(pool, idLot, dateReference) {
+    const request = pool.request();
+    request.input('idLot', idLot);
+    request.input('dateReference', dateReference);
+    return request.query(`
+      SELECT TOP 1 *
+      FROM situation
+      WHERE idLot = @idLot
+        AND dateSituation <= @dateReference
+      ORDER BY dateSituation DESC
+    `);
+  }
+
   static async findByLotBeforeDate(pool, idLot, dateReference) {
     const request = pool.request();
     request.input('idLot', idLot);

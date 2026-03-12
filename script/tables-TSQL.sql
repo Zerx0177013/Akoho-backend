@@ -9,7 +9,10 @@ CREATE TABLE race (
     name NVARCHAR (255) NOT NULL,
     prixAchatSakafo DECIMAL(10, 2) NOT NULL,
     prixVenteAkoho DECIMAL(10, 2) NOT NULL,
-    prixVenteAtody DECIMAL(10, 2) NOT NULL
+    prixVenteAtody DECIMAL(10, 2) NOT NULL,
+    sexualiteFemelle DECIMAL(10, 2) NOT NULL,
+    oeufPondueMax INT NOT NULL,
+    incubation INT NOT NULL
 );
 
 CREATE TABLE lot (
@@ -61,6 +64,13 @@ CREATE TABLE evenement (
     CONSTRAINT FK_Evenement_Type FOREIGN KEY (idTypeEvenement) REFERENCES typeEvenement(idTypeEvenement)
 );
 
+CREATE TABLE lotFille(
+    idLotFille INT IDENTITY(1,1) PRIMARY KEY,
+    idLot INT NOT NULL,
+    nombreAkohoFemelle INT NOT NULL,
+    nombreAkohoMale INT NOT NULL
+);
+
 -- Disable all foreign keys for a table
 ALTER TABLE YourTable NOCHECK CONSTRAINT ALL;
 
@@ -69,3 +79,10 @@ ALTER TABLE YourTable NOCHECK CONSTRAINT ALL;
 
 -- Re-enable constraints
 ALTER TABLE YourTable WITH CHECK CHECK CONSTRAINT ALL;
+
+ALTER TABLE race
+ADD sexualiteFemelle DECIMAL(10, 2) NOT NULL DEFAULT 0,
+    oeufPondueMax INT NOT NULL DEFAULT 0;
+
+    ALTER TABLE race
+ADD incubation INT NOT NULL DEFAULT 0;

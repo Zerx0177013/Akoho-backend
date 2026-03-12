@@ -62,5 +62,33 @@ class Evenement {
       quantite,
     );
   }
+
+  static async findMostRecentAjoutAtodyByLot(pool, idLot) {
+    const query = `
+      SELECT TOP 1 *
+      FROM evenement
+      WHERE idLot = @idLot
+        AND idTypeEvenement = @idTypeEvenement
+      ORDER BY dateEvenement DESC
+    `;
+    const request = pool.request();
+    request.input("idLot", idLot);
+    request.input("idTypeEvenement", this.TYPE.AJOUT_ATODY);
+    return request.query(query);
+  }
+
+  static async findAllAjoutAtodyByLot(pool, idLot) {
+    const query = `
+      SELECT *
+      FROM evenement
+      WHERE idLot = @idLot
+        AND idTypeEvenement = @idTypeEvenement
+      ORDER BY dateEvenement ASC
+    `;
+    const request = pool.request();
+    request.input("idLot", idLot);
+    request.input("idTypeEvenement", this.TYPE.AJOUT_ATODY);
+    return request.query(query);
+  }
 }
 module.exports = Evenement;

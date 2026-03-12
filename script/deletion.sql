@@ -16,3 +16,5 @@ DELETE FROM lot;
 DELETE FROM race;
 DELETE FROM grossissement;
 DELETE FROM situation;
+
+DELETE FROM evenement;

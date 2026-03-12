@@ -23,6 +23,23 @@ class EclosionController {
       res.status(500).json({ error: error.message });
     }
   }
+
+  static async createAuto(req, res) {
+    try {
+      const { idLot } = req.body;
+
+      if (!idLot) {
+        return res.status(400).json({ error: 'idLot is required' });
+      }
+
+      const pool = await poolPromise;
+      const result = await EclosionService.newProcessEclosion(pool, idLot);
+
+      res.status(201).json({ message: 'Eclosion auto-processed successfully', data: result });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
 }
 
 module.exports = EclosionController;

@@ -25,7 +25,7 @@ class OeufDefaillantService {
       throw new Error("Lot not found");
     }
 
-    const nearestSituationResult = await Situation.findNearestByLotAndDate(
+    const nearestSituationResult = await Situation.findMostRecentByLotBeforeDate(
       pool,
       idLot,
       dateOeufDefaillant,

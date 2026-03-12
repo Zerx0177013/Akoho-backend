@@ -2,6 +2,7 @@
 const sql = require("mssql");
 const Lot = require("../models/Lot");
 const Situation = require("../models/Situation");
+const LotFille = require("../models/LotFille");
 
 class LotService {
   static async createLot(
@@ -61,6 +62,13 @@ class LotService {
         0,
         0,
         age,
+      );
+
+      await LotFille.create(
+        transaction,
+        newLot.idLot,
+        Number(nombreAkoho),
+        0,
       );
 
       await transaction.commit();
