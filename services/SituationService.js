@@ -63,6 +63,7 @@ class SituationService {
     nombreAkohoVivant,
     nombreAkohoMort,
     nombreAtody,
+    mortaliteFemellePourcentage = 0,
   ) {
     if (!idLot) throw new Error("Lot ID is required");
     if (!dateSituation) throw new Error("Date Situation is required");
@@ -110,11 +111,39 @@ class SituationService {
     );
 
     if (Number(nombreAkohoMort) != 0) {
+      if (
+        mortaliteFemellePourcentage === null ||
+        mortaliteFemellePourcentage === undefined ||
+        Number(mortaliteFemellePourcentage) < 0 ||
+        Number(mortaliteFemellePourcentage) > 100
+      ) {
+        throw new Error(
+          "Mortalité Femelle Pourcentage must be between 0 and 100",
+        );
+      }
       await Evenement.createDeathAkohoEvent(
         pool,
         idLot,
         dateSituation,
         nombreAkohoMort,
+      );
+      const mrtTtl = Number(nombreAkohoMort);
+      const mrtFemelle = Math.round(
+        mrtTtl * (Number(mortaliteFemellePourcentage) / 100),
+      );
+      const mrtMale = mrtTtl - mrtFemelle;
+
+      await Situation.addQuantityToMostRecentSituation(
+        pool,
+        idLot,
+        dateSituation,
+        Number(nombreAkohoVivant) - mrtTtl,
+        mrtTtl,
+        Number(nombreAtody),
+        Number(age),
+        0,
+        -mrtMale,
+        -mrtFemelle,
       );
     }
     if (Number(nombreAtody) != 0) {
@@ -128,19 +157,19 @@ class SituationService {
         pool,
         idLot,
         dateSituation,
-        0, 
         0,
-        Number(nombreAtody), 
+        0,
+        Number(nombreAtody),
         Number(age),
-        -Number(nombreAtody)  
-    );
+        -Number(nombreAtody),
+      );
       await EclosionService.ProcessEclosion2(
         pool,
         idLot,
         nombreAtody,
         dateSituation,
       );
-    } 
+    }
   }
 
   static async getAllSituations(pool) {

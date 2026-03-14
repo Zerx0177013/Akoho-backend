@@ -5,7 +5,7 @@ class SituationController {
   // POST /api/situations
   static async create(req, res) {
     try {
-      const { idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody } = req.body;
+      const { idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, mortaliteFemelle } = req.body;
 
       if (
         !idLot ||
@@ -24,7 +24,8 @@ class SituationController {
         dateSituation,
         nombreAkohoVivant,
         nombreAkohoMort,
-        nombreAtody
+        nombreAtody,
+        mortaliteFemelle || 0
       );
 
       res.status(201).json({ message: 'Situation created successfully', data: result });
