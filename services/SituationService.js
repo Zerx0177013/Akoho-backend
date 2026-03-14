@@ -1,6 +1,7 @@
 const Situation = require("../models/Situation");
 const Lot = require("../models/Lot");
 const Evenement = require("../models/Evenement");
+const EclosionService = require("./EclosionService");
 
 class SituationService {
   static computeAgeInWeeks(dateAchat, initialAgeWeeks, dateSituation) {
@@ -123,17 +124,23 @@ class SituationService {
         dateSituation,
         nombreAtody,
       );
-    }
-
-    return Situation.addQuantityToMostRecentSituation(
-      pool,
-      idLot,
-      dateSituation,
-      Number(nombreAkohoVivant) - Number(nombreAkohoMort),
-      Number(nombreAkohoMort),
-      Number(nombreAtody),
-      Number(age),
+      await Situation.addQuantityToMostRecentSituation(
+        pool,
+        idLot,
+        dateSituation,
+        0, 
+        0,
+        Number(nombreAtody), 
+        Number(age),
+        -Number(nombreAtody)  
     );
+      await EclosionService.ProcessEclosion2(
+        pool,
+        idLot,
+        nombreAtody,
+        dateSituation,
+      );
+    } 
   }
 
   static async getAllSituations(pool) {

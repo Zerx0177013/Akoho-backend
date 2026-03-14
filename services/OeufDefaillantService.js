@@ -61,6 +61,9 @@ class OeufDefaillantService {
       Number(nearestSituation.nombreAkohoMort),
       newNombreAtody,
       Number(nearestSituation.age),
+      Number(nearestSituation.nombreAtodyTotalPossible || 0),
+      Number(nearestSituation.nombreAkohoLahy || 0),
+      Number(nearestSituation.nombreAkohoVavy || 0)
     );
 
     return {

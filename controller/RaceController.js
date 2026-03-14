@@ -6,14 +6,24 @@ class RaceController {
   // POST /api/races
   static async create(req, res) {
     try {
-      const { name, prixAchatSakafo, prixVenteAkoho, prixVenteAtody } = req.body;
+      const { name, prixAchatSakafo, prixVenteAkoho, prixVenteAtody, sexualiteFemelle, oeufPondueMax, mortaliteAtody, incubation } = req.body;
 
-      if (!name || !prixAchatSakafo || !prixVenteAkoho || !prixVenteAtody) {
+      if (!name || prixAchatSakafo === undefined || prixVenteAkoho === undefined || prixVenteAtody === undefined || sexualiteFemelle === undefined || oeufPondueMax === undefined || mortaliteAtody === undefined || incubation === undefined) {
         return res.status(400).json({ error: 'All fields are required' });
       }
 
       const pool = await poolPromise;
-      const result = await RaceService.createRace(pool, name, prixAchatSakafo, prixVenteAkoho, prixVenteAtody);
+      const result = await RaceService.createRace(
+        pool, 
+        name, 
+        prixAchatSakafo, 
+        prixVenteAkoho, 
+        prixVenteAtody, 
+        sexualiteFemelle, 
+        oeufPondueMax, 
+        mortaliteAtody, 
+        incubation
+      );
 
       res.status(201).json({ message: 'Race created successfully', data: result });
     } catch (error) {

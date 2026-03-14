@@ -1,5 +1,5 @@
 class Situation {
-  constructor(idSituation, idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age) {
+  constructor(idSituation, idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age, nombreAtodyTotalPossible = 0, nombreAkohoLahy = 0, nombreAkohoVavy = 0) {
     this.idSituation = idSituation;
     this.idLot = idLot;
     this.dateSituation = dateSituation;
@@ -7,11 +7,14 @@ class Situation {
     this.nombreAkohoMort = nombreAkohoMort;
     this.nombreAtody = nombreAtody;
     this.age = age;
+    this.nombreAtodyTotalPossible = nombreAtodyTotalPossible;
+    this.nombreAkohoLahy = nombreAkohoLahy;
+    this.nombreAkohoVavy = nombreAkohoVavy;
   }
 
-  static async create(pool, idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age) {
-    const query = `INSERT INTO situation (idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age) 
-                   VALUES (@idLot, @dateSituation, @nombreAkohoVivant, @nombreAkohoMort, @nombreAtody, @age)`;
+  static async create(pool, idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age, nombreAtodyTotalPossible = 0, nombreAkohoLahy = 0, nombreAkohoVavy = 0) {
+    const query = `INSERT INTO situation (idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age, nombreAtodyTotalPossible, nombreAkohoLahy, nombreAkohoVavy) 
+                   VALUES (@idLot, @dateSituation, @nombreAkohoVivant, @nombreAkohoMort, @nombreAtody, @age, @nombreAtodyTotalPossible, @nombreAkohoLahy, @nombreAkohoVavy)`;
     const request = pool.request();
     request.input('idLot', idLot);
     request.input('dateSituation', dateSituation);
@@ -19,6 +22,9 @@ class Situation {
     request.input('nombreAkohoMort', nombreAkohoMort);
     request.input('nombreAtody', nombreAtody);
     request.input('age', age);
+    request.input('nombreAtodyTotalPossible', nombreAtodyTotalPossible);
+    request.input('nombreAkohoLahy', nombreAkohoLahy);
+    request.input('nombreAkohoVavy', nombreAkohoVavy);
     return request.query(query);
   }
   
@@ -36,21 +42,21 @@ class Situation {
       SELECT TOP 1 * 
       FROM situation 
       WHERE idLot = @idLot 
-      ORDER BY dateSituation DESC
+      ORDER BY dateSituation DESC,idSituation DESC
     `);
   }
 
-  static async findNearestByLotAndDate(pool, idLot, dateReference) {
-    const request = pool.request();
-    request.input('idLot', idLot);
-    request.input('dateReference', dateReference);
-    return request.query(`
-      SELECT TOP 1 *
-      FROM situation
-      WHERE idLot = @idLot
-      ORDER BY ABS(DATEDIFF(day, dateSituation, @dateReference)), dateSituation DESC
-    `);
-  }
+  // static async findNearestByLotAndDate(pool, idLot, dateReference) {
+  //   const request = pool.request();
+  //   request.input('idLot', idLot);
+  //   request.input('dateReference', dateReference);
+  //   return request.query(`
+  //     SELECT TOP 1 *
+  //     FROM situation
+  //     WHERE idLot = @idLot
+  //     ORDER BY ABS(DATEDIFF(day, dateSituation, @dateReference)), dateSituation DESC
+  //   `);
+  // }
 
   static async findMostRecentByLotBeforeDate(pool, idLot, dateReference) {
     const request = pool.request();
@@ -78,7 +84,7 @@ class Situation {
     `);
   }
 
-  static async addQuantityToMostRecentSituation(pool, idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age) {
+  static async addQuantityToMostRecentSituation(pool, idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age, nombreAtodyTotalPossible = 0, nombreAkohoLahy = 0, nombreAkohoVavy = 0) {
     const recentSituationResult = await this.findMostRecentSituationByLot(pool, idLot);
     const recentSituation = recentSituationResult.recordset[0];
 
@@ -90,8 +96,13 @@ class Situation {
     const updatedMort = recentSituation.nombreAkohoMort + nombreAkohoMort;
     const updatedAtody = recentSituation.nombreAtody + nombreAtody;
 
-    const query = `INSERT INTO situation (idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age) 
-                   VALUES (@idLot, @dateSituation, @nombreAkohoVivant, @nombreAkohoMort, @nombreAtody, @age)`;
+    // We can also accumulate the new properties if desired or just pass them as new values/accumulated values
+    const updatedAtodyTotalPossible = recentSituation.nombreAtodyTotalPossible + nombreAtodyTotalPossible;
+    const updatedLahy = recentSituation.nombreAkohoLahy + nombreAkohoLahy;
+    const updatedVavy = recentSituation.nombreAkohoVavy + nombreAkohoVavy;
+
+    const query = `INSERT INTO situation (idLot, dateSituation, nombreAkohoVivant, nombreAkohoMort, nombreAtody, age, nombreAtodyTotalPossible, nombreAkohoLahy, nombreAkohoVavy) 
+                   VALUES (@idLot, @dateSituation, @nombreAkohoVivant, @nombreAkohoMort, @nombreAtody, @age, @nombreAtodyTotalPossible, @nombreAkohoLahy, @nombreAkohoVavy)`;
     const request = pool.request();
     request.input('idLot', idLot);
     request.input('dateSituation', dateSituation);
@@ -99,6 +110,9 @@ class Situation {
     request.input('nombreAkohoMort', updatedMort);
     request.input('nombreAtody', updatedAtody);
     request.input('age', age);
+    request.input('nombreAtodyTotalPossible', updatedAtodyTotalPossible);
+    request.input('nombreAkohoLahy', updatedLahy);
+    request.input('nombreAkohoVavy', updatedVavy);
     return request.query(query);
   }
 }

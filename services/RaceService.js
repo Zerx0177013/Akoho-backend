@@ -8,6 +8,10 @@ class RaceService {
     prixAchatSakafo,
     prixVenteAkoho,
     prixVenteAtody,
+    sexualiteFemelle,
+    oeufPondueMax,
+    mortaliteAtody,
+    incubation
   ) {
     // Validation
     if (!name) throw new Error("Name is required");
@@ -23,6 +27,10 @@ class RaceService {
       prixAchatSakafo,
       prixVenteAkoho,
       prixVenteAtody,
+      sexualiteFemelle,
+      oeufPondueMax,
+      mortaliteAtody,
+      incubation
     );
 
     return result;

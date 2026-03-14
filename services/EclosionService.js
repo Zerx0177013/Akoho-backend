@@ -4,8 +4,157 @@ const Situation = require("../models/Situation");
 const Evenement = require("../models/Evenement");
 const LotFille = require("../models/LotFille");
 const RaceService = require("./RaceService");
-
 class EclosionService {
+  static computeAgeInWeeks(dateAchat, initialAgeWeeks, dateSituation) {
+    const normalizeDate = (value) => {
+      if (value instanceof Date) {
+        return new Date(
+          Date.UTC(
+            value.getUTCFullYear(),
+            value.getUTCMonth(),
+            value.getUTCDate(),
+          ),
+        );
+      }
+
+      const raw = String(value || "").trim();
+      if (!raw) return new Date("invalid");
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        return new Date(`${raw}T00:00:00Z`);
+      }
+
+      const parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) return parsed;
+
+      return new Date(
+        Date.UTC(
+          parsed.getUTCFullYear(),
+          parsed.getUTCMonth(),
+          parsed.getUTCDate(),
+        ),
+      );
+    };
+
+    const purchaseDate = normalizeDate(dateAchat);
+    const situationDate = normalizeDate(dateSituation);
+
+    if (
+      Number.isNaN(purchaseDate.getTime()) ||
+      Number.isNaN(situationDate.getTime())
+    ) {
+      throw new Error("Invalid date value");
+    }
+
+    if (situationDate < purchaseDate) {
+      throw new Error("Date Situation cannot be before lot purchase date");
+    }
+
+    const diffInMs = situationDate.getTime() - purchaseDate.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    const elapsedWeeks = Math.floor(diffInDays / 7);
+
+    return Number(initialAgeWeeks) + elapsedWeeks;
+  }
+  static async ProcessEclosion2(
+    pool,
+    idLot,
+    nombreAtodyToHatch,
+    dateApparitionAtody,
+  ) {
+    const transaction = new sql.Transaction(pool);
+    try {
+      await transaction.begin();
+
+      // 1. Récupérer les infos de la Race (via le Lot)
+      const lotSource = (await Lot.findById(transaction, idLot)).recordset[0];
+      const race = await RaceService.getRaceById(transaction, lotSource.idRace);
+
+      // 2. Calculer la date d'éclosion (Jour X)
+      const dateX = new Date(dateApparitionAtody);
+      dateX.setDate(dateX.getDate() + Number(race.incubation));
+      const dateXStr = dateX.toISOString().split("T")[0];
+
+      // 3. Calcul de la mortalité des œufs et répartition des sexes
+      const tauxMortalite = Number(race.mortaliteAtody) || 0;
+      const nbrMortsOeufs = Math.round(
+        (nombreAtodyToHatch * tauxMortalite) / 100,
+      );
+      const nbrVivants = nombreAtodyToHatch - nbrMortsOeufs;
+
+      const nbrVavy = Math.round(
+        (nbrVivants * Number(race.sexualiteFemelle)) / 100,
+      );
+      const nbrLahy = nbrVivants - nbrVavy;
+
+      // 4. SOUSTRACTION chez le parent au Jour X
+      // On retire nombreAtodyToHatch de l'inventaire des œufs
+      // On peut aussi réduire le nombreAtodyTotalPossible ici si c'est votre logique
+      const currentAge = EclosionService.computeAgeInWeeks(
+        lotSource.dateAchat,
+        lotSource.age,
+        dateXStr,
+      );
+
+      await Situation.addQuantityToMostRecentSituation(
+        transaction,
+        idLot,
+        dateXStr,
+        0, // diffVivant
+        0, // diffMort
+        -nombreAtodyToHatch, // ON SOUSTRAIT LES OEUFS
+        currentAge,
+        0, // diffPossible (nombreAtodyTotalPossible)
+        0, // diffLahy (nombreAkohoLahy)
+        0, // diffVavy (nombreAkohoVavy)
+      );
+
+      // 5. CRÉATION DU NOUVEAU LOT (Jour X)
+      const newLotResult = await Lot.createAtLotCreation(
+        transaction,
+        lotSource.idRace,
+        dateXStr,
+        nbrVivants,
+        0, // age
+        0, // prixAchat
+        idLot, // idLotParent
+        0, // poidsInitial
+        race.oeufPondueMax * nbrVavy, // nombreAtodyTotalPossible
+        nbrLahy, // nombreAkohoLahy
+        nbrVavy, // nombreAkohoVavy
+      );
+
+      const newLotId = newLotResult.recordset[0].idLot;
+
+      // 6. Situation initiale du nouveau lot et Événement d'éclosion
+      await Situation.create(
+        transaction,
+        newLotId,
+        dateXStr,
+        nbrVivants,
+        0,
+        0,
+        0,
+        race.oeufPondueMax * nbrVavy,
+        nbrLahy,
+        nbrVavy,
+      );
+
+      await Evenement.createEclosionEvent(
+        transaction,
+        idLot,
+        dateXStr,
+        nbrVivants,
+      );
+
+      await transaction.commit();
+      return { success: true, newLotId };
+    } catch (err) {
+      if (transaction) await transaction.rollback();
+      throw err;
+    }
+  }
+
   static async processEclosion(pool, idLot, nombreAtodyEclos, dateEclosion) {
     if (!idLot) throw new Error("Lot ID is required");
     if (!dateEclosion) throw new Error("Date eclosion is required");
@@ -23,11 +172,8 @@ class EclosionService {
       throw new Error("Source lot not found");
     }
 
-    const nearestSituationResult = await Situation.findMostRecentByLotBeforeDate(
-      pool,
-      idLot,
-      dateEclosion,
-    );
+    const nearestSituationResult =
+      await Situation.findMostRecentByLotBeforeDate(pool, idLot, dateEclosion);
     const nearestSituation = nearestSituationResult.recordset[0];
     if (!nearestSituation) {
       throw new Error("No situation found for this lot");
@@ -52,6 +198,9 @@ class EclosionService {
       Number(nearestSituation.nombreAkohoMort),
       newNombreAtody,
       Number(nearestSituation.age),
+      Number(nearestSituation.nombreAtodyTotalPossible || 0),
+      Number(nearestSituation.nombreAkohoLahy || 0),
+      Number(nearestSituation.nombreAkohoVavy || 0),
     );
 
     const newLotResult = await Lot.createAtLotCreation(
@@ -190,6 +339,9 @@ class EclosionService {
         Number(nearestSituation.nombreAkohoMort),
         newNombreAtody,
         Number(nearestSituation.age),
+        Number(nearestSituation.nombreAtodyTotalPossible || 0),
+        Number(nearestSituation.nombreAkohoLahy || 0),
+        Number(nearestSituation.nombreAkohoVavy || 0),
       );
 
       // 5. Get the sexualiteFemelle percentage
@@ -230,12 +382,7 @@ class EclosionService {
       );
 
       // 8. Create lotFille record with female/male counts
-      await LotFille.create(
-        transaction,
-        newLotId,
-        nombreFemelle,
-        nombreMale,
-      );
+      await LotFille.create(transaction, newLotId, nombreFemelle, nombreMale);
 
       // 9. Add eclosion event to the evenement table
       await Evenement.createEclosionEvent(

@@ -3,6 +3,7 @@ const sql = require("mssql");
 const Lot = require("../models/Lot");
 const Situation = require("../models/Situation");
 const LotFille = require("../models/LotFille");
+const raceService = require("./RaceService");
 
 class LotService {
   static async createLot(
@@ -13,6 +14,9 @@ class LotService {
     age,
     prixAchat,
     poidsInitial,
+    nombreAtodyTotalPossible = 0,
+    nombreAkohoLahy = 0,
+    nombreAkohoVavy = 0,
   ) {
     // Validation
     if (!idRace) throw new Error("Race ID is required");
@@ -37,6 +41,11 @@ class LotService {
 
     try {
       await transaction.begin();
+      const race = await raceService.getRaceById(transaction, idRace);
+
+      nombreAkohoVavy = nombreAkoho;
+      nombreAkohoLahy = 0;
+      nombreAtodyTotalPossible = race.oeufPondueMax * nombreAkohoVavy;
 
       const result = await Lot.createAtLotCreation(
         transaction,
@@ -47,6 +56,9 @@ class LotService {
         prixAchat,
         null,
         Number(poidsInitial),
+        Number(nombreAtodyTotalPossible),
+        Number(nombreAkohoLahy),
+        Number(nombreAkohoVavy),
       );
 
       const newLot = result.recordset?.[0];
@@ -62,13 +74,9 @@ class LotService {
         0,
         0,
         age,
-      );
-
-      await LotFille.create(
-        transaction,
-        newLot.idLot,
-        Number(nombreAkoho),
-        0,
+        Number(nombreAtodyTotalPossible),
+        Number(nombreAkohoLahy),
+        Number(nombreAkohoVavy),
       );
 
       await transaction.commit();
@@ -77,8 +85,7 @@ class LotService {
       if (transaction._aborted !== true) {
         try {
           await transaction.rollback();
-        } catch (_) {
-        }
+        } catch (_) {}
       }
       throw error;
     }

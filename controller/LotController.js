@@ -6,14 +6,25 @@ class LotController {
   // POST /api/lots
   static async create(req, res) {
     try {
-      const { idRace, dateAchat, nombreAkoho, age, prixAchat, poidsInitial } = req.body;
+      const { idRace, dateAchat, nombreAkoho, age, prixAchat, poidsInitial, nombreAtodyTotalPossible, nombreAkohoLahy, nombreAkohoVavy } = req.body;
 
       if (!idRace || !dateAchat || !nombreAkoho || age === undefined || !prixAchat || poidsInitial === undefined) {
         return res.status(400).json({ error: 'All fields are required' });
       }
 
       const pool = await poolPromise;
-      const result = await LotService.createLot(pool, idRace, dateAchat, nombreAkoho, age, prixAchat, poidsInitial);
+      const result = await LotService.createLot(
+        pool, 
+        idRace, 
+        dateAchat, 
+        nombreAkoho, 
+        age, 
+        prixAchat, 
+        poidsInitial,
+        nombreAtodyTotalPossible || 0,
+        nombreAkohoLahy || 0,
+        nombreAkohoVavy || 0
+      );
 
       res.status(201).json({ message: 'Lot created successfully', data: result });
     } catch (error) {

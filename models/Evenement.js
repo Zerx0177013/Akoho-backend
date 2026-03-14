@@ -4,6 +4,8 @@ class Evenement {
     ECLOSION: 2,
     ATODY_ARINA: 3,
     AJOUT_ATODY: 4,
+    MORT_MALE: 1002,
+    MORT_FEMELLE: 1003,
   };
 
   static async #insertEvenement(
@@ -89,6 +91,24 @@ class Evenement {
     request.input("idLot", idLot);
     request.input("idTypeEvenement", this.TYPE.AJOUT_ATODY);
     return request.query(query);
+  }
+  static async createDeathAkohoLahyEvent(pool, idLot, dateEvenement, quantite) {
+    return this.#insertEvenement(
+      pool,
+      idLot,
+      this.TYPE.MORT_MALE,
+      dateEvenement,
+      quantite,
+    );
+  }
+  static async createDeathAkohoVavyEvent(pool, idLot, dateEvenement, quantite) {
+    return this.#insertEvenement(
+      pool,
+      idLot,
+      this.TYPE.MORT_FEMELLE,
+      dateEvenement,
+      quantite,
+    );
   }
 }
 module.exports = Evenement;
