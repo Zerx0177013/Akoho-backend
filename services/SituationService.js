@@ -2,6 +2,7 @@ const Situation = require("../models/Situation");
 const Lot = require("../models/Lot");
 const Evenement = require("../models/Evenement");
 const EclosionService = require("./EclosionService");
+const DeathService = require("./DeathService");
 
 class SituationService {
   static computeAgeInWeeks(dateAchat, initialAgeWeeks, dateSituation) {
@@ -121,32 +122,43 @@ class SituationService {
           "Mortalité Femelle Pourcentage must be between 0 and 100",
         );
       }
-      await Evenement.createDeathAkohoEvent(
-        pool,
-        idLot,
-        dateSituation,
-        nombreAkohoMort,
-      );
-      const mrtTtl = Number(nombreAkohoMort);
-      const mrtFemelle = Math.round(
-        mrtTtl * (Number(mortaliteFemellePourcentage) / 100),
-      );
-      const mrtMale = mrtTtl - mrtFemelle;
 
-      await Situation.addQuantityToMostRecentSituation(
+      await DeathService.processDeath(
         pool,
         idLot,
         dateSituation,
-        Number(nombreAkohoVivant) - mrtTtl,
-        mrtTtl,
-        Number(nombreAtody),
-        Number(age),
-        0,
-        -mrtMale,
-        -mrtFemelle,
+        nombreAkohoVivant,
+        nombreAkohoMort,
+        nombreAtody,
+        age,
+        mortaliteFemellePourcentage,
       );
     }
     if (Number(nombreAtody) != 0) {
+      // Dans ton SituationService, là où tu gères le nombreAtody
+      if (Number(nombreAtody) > 0) {
+        // 1. Récupérer la situation la plus récente à cette date
+        const lastSitResult = await Situation.findMostRecentByLotBeforeDate(
+          pool,
+          idLot,
+          dateSituation,
+        );
+        const lastSit = lastSitResult.recordset[0];
+
+        if (lastSit) {
+          const potentielRestant = Number(
+            lastSit.nombreAtodyTotalPossible || 0,
+          );
+
+          // 2. Validation
+          if (Number(nombreAtody) > potentielRestant) {
+            throw new Error(
+              `Erreur de saisie : Le lot ne peut plus pondre que ${potentielRestant} œufs, ` +
+                `mais vous essayez d'en saisir ${nombreAtody}.`,
+            );
+          }
+        }
+      }
       await Evenement.createAtodyDiscoveryEvent(
         pool,
         idLot,
