@@ -205,7 +205,84 @@ class SituationFinanciereService {
     return totalPoidsSakafo;
   }
 
-  static async calculPoidsSakafoWeighted(
+  // static async calculPoidsSakafoWeighted(
+  //   pool,
+  //   idLot,
+  //   dateSituation,
+  //   grossissementsByAge = null,
+  // ) {
+  //   const lotActuel = await LotService.getLotById(pool, idLot);
+  //   const dateAchat = new Date(lotActuel.dateAchat);
+  //   const dateSit = new Date(dateSituation);
+
+  //   dateAchat.setHours(0, 0, 0, 0);
+  //   dateSit.setHours(0, 0, 0, 0);
+
+  //   if (dateSit < dateAchat) return 0;
+
+  //   if (!grossissementsByAge) {
+  //     const grossissements = await GrossissementService.getGrossissementsByRace(
+  //       pool,
+  //       lotActuel.idRace,
+  //     );
+  //     grossissementsByAge = this.toGrossissementByAgeMap(grossissements);
+  //   }
+
+  //   const allSituationsResult = await Situation.findByLotBeforeDate(
+  //     pool,
+  //     idLot,
+  //     dateSituation,
+  //   );
+  //   const situations = allSituationsResult.recordset;
+
+  //   if (!situations || situations.length === 0) return 0;
+
+  //   let totalWeightedPoidsSakafo = 0;
+
+  //   for (let i = 0; i < situations.length; i++) {
+  //     const currentSituation = situations[i];
+  //     const segmentStart = new Date(currentSituation.dateSituation);
+  //     segmentStart.setHours(0, 0, 0, 0);
+
+  //     let segmentEnd;
+  //     if (i + 1 < situations.length) {
+  //       segmentEnd = new Date(situations[i + 1].dateSituation);
+  //     } else {
+  //       segmentEnd = dateSit;
+  //     }
+  //     segmentEnd.setHours(0, 0, 0, 0);
+
+  //     if (segmentStart > segmentEnd) continue;
+
+  //     const cumulativeAtEnd = this._cumulativePoidsSakafo(
+  //       lotActuel.age,
+  //       dateAchat,
+  //       segmentEnd,
+  //       grossissementsByAge,
+  //     );
+
+  //     let segmentPoidsSakafo;
+
+  //     if (segmentStart.getTime() === dateAchat.getTime()) {
+  //       segmentPoidsSakafo = cumulativeAtEnd;
+  //     } else {
+  //       const cumulativeAtStart = this._cumulativePoidsSakafo(
+  //         lotActuel.age,
+  //         dateAchat,
+  //         segmentStart,
+  //         grossissementsByAge,
+  //       );
+  //       segmentPoidsSakafo = cumulativeAtEnd - cumulativeAtStart;
+  //     }
+
+  //     const nombreVivant = Number(currentSituation.nombreAkohoVivant || 0);
+  //     totalWeightedPoidsSakafo += segmentPoidsSakafo * nombreVivant;
+  //   }
+
+  //   return totalWeightedPoidsSakafo;
+  // }
+
+static async calculPoidsSakafoWeighted(
     pool,
     idLot,
     dateSituation,
@@ -244,35 +321,41 @@ class SituationFinanciereService {
       const segmentStart = new Date(currentSituation.dateSituation);
       segmentStart.setHours(0, 0, 0, 0);
 
-      let segmentEnd;
-      if (i + 1 < situations.length) {
-        segmentEnd = new Date(situations[i + 1].dateSituation);
-      } else {
-        segmentEnd = dateSit;
-      }
+      let segmentEnd = (i + 1 < situations.length) 
+        ? new Date(situations[i + 1].dateSituation) 
+        : dateSit;
       segmentEnd.setHours(0, 0, 0, 0);
 
       if (segmentStart > segmentEnd) continue;
 
-      const cumulativeAtEnd = this._cumulativePoidsSakafo(
-        lotActuel.age,
-        dateAchat,
-        segmentEnd,
-        grossissementsByAge,
-      );
+      // --- NOUVELLE LOGIQUE : SOMME JOUR PAR JOUR DANS LE SEGMENT ---
+      let segmentPoidsSakafo = 0;
+      let d = new Date(segmentStart);
 
-      let segmentPoidsSakafo;
+      // On boucle sur chaque jour du segment
+      // on s'arrête AVANT segmentEnd pour ne pas compter le jour de transition deux fois
+      while (d < segmentEnd) {
+        const diffMs = d - dateAchat;
+        const jourDeVie = Math.floor(diffMs / (1000 * 60 * 60 * 24)); // Jour 0, Jour 1, etc.
+        
+        // Calcul de la ration pour ce jour précis (Jour 0 = ration de la 1ère semaine)
+        const ageReelSemaine = Number(lotActuel.age) + 1 + Math.floor(jourDeVie / 7);
+        const g = this.getLastGrossissementAtOrBeforeAge(grossissementsByAge, ageReelSemaine);
+        
+        if (g) {
+          segmentPoidsSakafo += (g.poidsSakafo / 7);
+        }
+        
+        d.setDate(d.getDate() + 1);
+      }
 
-      if (segmentStart.getTime() === dateAchat.getTime()) {
-        segmentPoidsSakafo = cumulativeAtEnd;
-      } else {
-        const cumulativeAtStart = this._cumulativePoidsSakafo(
-          lotActuel.age,
-          dateAchat,
-          segmentStart,
-          grossissementsByAge,
-        );
-        segmentPoidsSakafo = cumulativeAtEnd - cumulativeAtStart;
+      // Cas particulier : si c'est le dernier jour (dateSit), on ajoute la ration du dernier jour
+      if (segmentEnd.getTime() === dateSit.getTime() && i === situations.length - 1) {
+          const diffMs = dateSit - dateAchat;
+          const jourDeVie = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          const ageReelSemaine = Number(lotActuel.age) + 1 + Math.floor(jourDeVie / 7);
+          const g = this.getLastGrossissementAtOrBeforeAge(grossissementsByAge, ageReelSemaine);
+          if (g) segmentPoidsSakafo += (g.poidsSakafo / 7);
       }
 
       const nombreVivant = Number(currentSituation.nombreAkohoVivant || 0);
@@ -587,9 +670,9 @@ class SituationFinanciereService {
         prixVenteAtodyEstimation,
         benefice,
         poidsMoyenAkoho,
-        race.name, 
-        lot.prixAchat, 
-        ageEnSemaine, 
+        race.name,
+        lot.prixAchat,
+        ageEnSemaine,
       );
       listeSituationsFinancieres.push(situationLot);
     }
@@ -627,7 +710,7 @@ class SituationFinanciereService {
     dFin.setHours(0, 0, 0, 0);
 
     const differenceInMs = dFin - dDebut;
-   const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24)) + 1;
+    const diffJours = Math.floor(differenceInMs / (1000 * 60 * 60 * 24)) + 1;
 
     if (diffJours < 1) return 0;
     const grossissements = await GrossissementService.getGrossissementsByRace(
